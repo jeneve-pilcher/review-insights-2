@@ -1,0 +1,19 @@
+fastapi>=0.111
+uvicorn[standard]>=0.30
+pydantic>=2.7
+python-dotenv>=1.0
+requests>=2.32
+
+# Supabase (auth verification + admin DB access)
+supabase>=2.6
+PyJWT[crypto]>=2.8
+
+# Stripe billing
+stripe>=10.0
+
+# Data source + NLP
+outscraper>=4.4
+nltk>=3.8
+transformers>=4.42
+torch>=2.2
+python-dateutil>=2.9
