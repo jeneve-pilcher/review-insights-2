@@ -2,6 +2,10 @@ from transformers import pipeline
 
 THEME_LABELS = ["Product Quality", "Pricing", "Weekend Communication", "Staff Behavior"]
 
+# Very long reviews slow the classifier down a lot without changing which
+# themes it detects (the signal is nearly always in the first few sentences).
+MAX_CHARS = 600
+
 _classifier = None
 
 
@@ -21,6 +25,8 @@ def classify_themes(texts: list[str], threshold: float = 0.4, batch_size: int = 
         return []
 
     classifier = get_classifier()
+    texts = [t[:MAX_CHARS] for t in texts]
+
     results = []
     for start in range(0, len(texts), batch_size):
         batch = texts[start:start + batch_size]

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import {
   BarElement,
@@ -10,53 +10,28 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import { analyzeCompetitorShare } from '../api'
+import NlpCallout from './NlpCallout.vue'
+import { competitorReadItems } from '../utils/nlpInsights'
 
 ChartJS.register(Title, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
 const THEME_LABELS = ['Product Quality', 'Pricing', 'Weekend Communication', 'Staff Behavior']
 const THEME_COLORS = ['#3498db', '#9b59b6', '#e67e22', '#1abc9c']
 
-const props = defineProps({ businessLocation: { type: String, required: true } })
+const props = defineProps({
+  businessLocation: { type: String, required: true },
+  // Comes from the same Run Analysis click as every other panel.
+  result: { type: Object, default: null },
+  months: { type: Number, default: 6 },
+})
 
-// "Your Business" is always the account's fixed location - only
-// competitors are free-text and editable.
-const competitors = ref([{ name: 'Competitor A', search_query: '' }])
-const loading = ref(false)
-const error = ref('')
-const result = ref(null)
-
-function addCompetitor() {
-  if (competitors.value.length >= 5) return
-  competitors.value.push({ name: `Competitor ${competitors.value.length + 1}`, search_query: '' })
-}
-
-function removeCompetitor(index) {
-  if (competitors.value.length <= 1) return
-  competitors.value.splice(index, 1)
-}
-
-async function runAnalysis() {
-  if (competitors.value.some((c) => !c.search_query.trim())) return
-  loading.value = true
-  error.value = ''
-  try {
-    result.value = await analyzeCompetitorShare({
-      competitors: competitors.value,
-      reviewLimit: 0,
-    })
-  } catch (err) {
-    error.value = err?.response?.data?.detail || 'Something went wrong.'
-  } finally {
-    loading.value = false
-  }
-}
+const readItems = computed(() => competitorReadItems(props.result))
 
 // Flatten each business's tiers into ordered columns: "Biz (5★)", "Biz (4★)", ...
 const flattenedColumns = computed(() => {
-  if (!result.value) return []
+  if (!props.result) return []
   const cols = []
-  for (const biz of result.value.businesses) {
+  for (const biz of props.result.businesses) {
     for (const tierRow of biz.tiers) {
       cols.push({ label: `${biz.name}\n(${tierRow.tier}★)`, tierRow })
     }
@@ -65,7 +40,7 @@ const flattenedColumns = computed(() => {
 })
 
 const chartData = computed(() => {
-  if (!result.value) return null
+  if (!props.result) return null
   const columns = flattenedColumns.value
 
   const datasets = THEME_LABELS.map((theme, i) => ({
@@ -83,62 +58,55 @@ const chartOptions = {
   plugins: { legend: { position: 'bottom' } },
   scales: {
     x: { stacked: true },
-    y: { stacked: true, max: 100, title: { display: true, text: '% of review volume' } },
+    y: { stacked: true, max: 100, title: { display: true, text: '% of written reviews in the tier' } },
   },
 }
 </script>
 
 <template>
   <section class="chart-section">
-    <h3>🏁 Competitor Semantic Share Matrix</h3>
+    <div class="title-row">
+      <h3>🏁 Competitor Semantic Share Matrix</h3>
+      <span class="nlp-badge">🧠 NLP</span>
+      <span class="data-basis">Each business: star tiers from all its reviews · themes from written reviews</span>
+    </div>
     <p class="chart-desc">
-      Compares <strong>{{ businessLocation }}</strong> (your account's business) against up to 5
-      competitors you name here, breaking down what drives each of their top 3 dominant star
-      tiers by theme - exposing exactly where a competitor is vulnerable. Top keywords per tier
-      are shown below the chart as a lightweight topic signal (word frequency, not full topic
-      modeling).
+      Compares <strong>{{ businessLocation }}</strong> (your account's business) against the
+      competitors you add in <em>Run Analysis</em> above, using reviews from the last {{ months }}
+      {{ months === 1 ? 'month' : 'months' }}. It breaks down what drives each business's top 3
+      dominant star tiers by theme - exposing exactly where a competitor is vulnerable. Top
+      keywords per tier are shown below the chart as a lightweight topic signal (word frequency,
+      not full topic modeling).
     </p>
 
-    <p class="chart-desc" style="margin-top: -8px">
-      Tip: if a competitor's name is ambiguous (multiple locations in the same city), paste that
-      location's specific Google Maps URL instead of typing its name.
+    <p v-if="!result" class="status">
+      Optional: add competitors in Run Analysis above, then click Run Analysis. Each competitor
+      is one extra review pull.
     </p>
 
-    <div class="competitor-inputs">
-      <div class="competitor-row">
-        <input :value="`Your Business (${businessLocation})`" type="text" class="competitor-query" disabled />
-      </div>
-      <div v-for="(c, i) in competitors" :key="i" class="competitor-row">
-        <input v-model="c.name" type="text" placeholder="Competitor name" class="competitor-name" />
-        <input v-model="c.search_query" type="text" placeholder="Location, or a Google Maps URL" class="competitor-query" />
-        <button v-if="competitors.length > 1" class="remove-btn" @click="removeCompetitor(i)">✕</button>
-      </div>
-      <button v-if="competitors.length < 5" class="add-btn" @click="addCompetitor">+ Add competitor</button>
-    </div>
+    <template v-else>
+      <NlpCallout
+        title="Your opening"
+        :items="readItems"
+        technique="A zero-shot language model reads each written review and assigns themes (quality, pricing, weekend communication, staff) with no keyword lists, then keywords are extracted per star tier."
+      />
 
-    <div class="analysis-form">
-      <button class="run-btn" @click="runAnalysis" :disabled="loading">
-        {{ loading ? 'Analyzing…' : 'Run Analysis' }}
-      </button>
-    </div>
+      <Bar :data="chartData" :options="chartOptions" />
 
-    <p v-if="error" class="status error">{{ error }}</p>
-
-    <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-
-    <div v-if="result" class="keyword-topics">
-      <div v-for="biz in result.businesses" :key="biz.name" class="keyword-business-block">
-        <h4>{{ biz.name }}</h4>
-        <div v-for="tierRow in biz.tiers" :key="tierRow.tier" class="keyword-tier-row">
-          <span class="keyword-tier-label">{{ tierRow.tier }}★:</span>
-          <span v-if="tierRow.top_keywords?.length" class="keyword-chips">
-            <span v-for="kw in tierRow.top_keywords" :key="kw.word" class="keyword-chip">
-              {{ kw.word }} ({{ kw.count }})
+      <div class="keyword-topics">
+        <div v-for="biz in result.businesses" :key="biz.name" class="keyword-business-block">
+          <h4>{{ biz.name }}</h4>
+          <div v-for="tierRow in biz.tiers" :key="tierRow.tier" class="keyword-tier-row">
+            <span class="keyword-tier-label">{{ tierRow.tier }}★:</span>
+            <span v-if="tierRow.top_keywords?.length" class="keyword-chips">
+              <span v-for="kw in tierRow.top_keywords" :key="kw.word" class="keyword-chip">
+                {{ kw.word }} ({{ kw.count }})
+              </span>
             </span>
-          </span>
-          <span v-else class="keyword-chips-empty">No standout keywords</span>
+            <span v-else class="keyword-chips-empty">No standout keywords</span>
+          </div>
         </div>
       </div>
-    </div>
+    </template>
   </section>
 </template>

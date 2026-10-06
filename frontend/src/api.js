@@ -26,44 +26,14 @@ export async function setBusinessLocation(businessLocation) {
   return data
 }
 
-export async function analyzeSentimentDrift({ reviewLimit }) {
-  const { data } = await api.post('/api/analyze/sentiment-drift', {
-    review_limit: reviewLimit,
-  })
-  return data
-}
-
-export async function analyzeWaitTimeHeatmap({ reviewLimit, avgOrderValue, reviewsToCustomersMultiplier }) {
-  const { data } = await api.post('/api/analyze/wait-time-heatmap', {
-    review_limit: reviewLimit,
-    avg_order_value: avgOrderValue,
-    reviews_to_customers_multiplier: reviewsToCustomersMultiplier,
-  })
-  return data
-}
-
-export async function analyzeCompetitorShare({ competitors, reviewLimit }) {
-  const { data } = await api.post('/api/analyze/competitor-share', {
-    competitors,
-    review_limit: reviewLimit,
-  })
-  return data
-}
-
-export async function analyzeAll({ reviewLimit, avgOrderValue, reviewsToCustomersMultiplier }) {
+// ONE request, ONE review pull for your business, powers every panel. Any competitors
+// you list are the only extra pulls (one each).
+export async function analyzeAll({ months, avgOrderValue, reviewsToCustomersMultiplier, competitors = [] }) {
   const { data } = await api.post('/api/analyze/all', {
-    review_limit: reviewLimit,
+    months,
     avg_order_value: avgOrderValue,
     reviews_to_customers_multiplier: reviewsToCustomersMultiplier,
-  })
-  return data
-}
-
-export async function fetchNegativeReviews({ reviewLimit, lookbackDays, maxReviews }) {
-  const { data } = await api.post('/api/analyze/negative-reviews', {
-    review_limit: reviewLimit,
-    lookback_days: lookbackDays,
-    max_reviews: maxReviews,
+    competitors,
   })
   return data
 }

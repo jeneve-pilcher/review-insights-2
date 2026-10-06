@@ -1,9 +1,10 @@
-from collections import defaultdict
-from datetime import datetime
+from collections import Counter, defaultdict
+from typing import List
 
 from dateutil import parser as date_parser
 
-from analysis.outscraper_client import dominant_tiers, fetch_reviews
+from analysis.outscraper_client import dominant_tiers
+from analysis.review_utils import text_reviews
 from analysis.sentiment import WAIT_TIME_PHRASES, contains_any_phrase
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -17,33 +18,74 @@ def _parse_dt(value):
         return None
     try:
         return date_parser.parse(value)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, OverflowError):
         return None
 
 
-def _hour_bucket_label(hour: int) -> str | None:
+def _hour_bucket_label(hour: int):
     for start, end in HOUR_BUCKETS:
         if start <= hour < end:
             return f"{start:02d}:00-{end:02d}:00"
     return None
 
 
+def _wait_scan(reviews: List[dict]):
+    """Phrase detection: which reviews talk about waiting / slow service, and
+    when (day + hour bucket) they were posted. Returns (summary, per-cell counts)."""
+    mentions = 0
+    phrase_counts: Counter = Counter()
+    cell_mentions: Counter = Counter()
+
+    for r in reviews:
+        lowered = r["text"].lower()
+        matched = [p for p in WAIT_TIME_PHRASES if p in lowered]
+        if not matched:
+            continue
+        mentions += 1
+        phrase_counts.update(matched)
+        dt = _parse_dt(r["datetime_utc"])
+        bucket = _hour_bucket_label(dt.hour) if dt else None
+        if dt and bucket:
+            cell_mentions[(DAY_ORDER[dt.weekday()], bucket)] += 1
+
+    hotspot = None
+    if cell_mentions:
+        (day, hour), count = max(cell_mentions.items(), key=lambda kv: (kv[1], kv[0]))
+        hotspot = {"day": day, "hour": hour, "mentions": count}
+
+    # Only written reviews can mention waiting, so that's the fair denominator.
+    written = len(text_reviews(reviews))
+    summary = {
+        "mention_count": mentions,
+        "total_reviews": written,
+        "share_pct": round(100 * mentions / written, 1) if written else 0.0,
+        "top_phrases": [{"phrase": p, "count": c} for p, c in phrase_counts.most_common(3)],
+        "hotspot": hotspot,
+    }
+    return summary, cell_mentions
+
+
+def build_wait_summary(reviews: List[dict]) -> dict:
+    """Just the language findings (used as the free-tier teaser)."""
+    return _wait_scan(reviews)[0]
+
+
 def build_wait_time_heatmap(
-    search_query: str,
-    review_limit: int = 300,
+    reviews: List[dict],
     avg_order_value: float = 35.0,
     reviews_to_customers_multiplier: float = 20.0,
 ) -> dict:
     """
-    `reviews_to_customers_multiplier` is a rough assumption for how many
-    actual customers correspond to each review left (most customers don't
-    leave a review). Adjust it to roughly match your business's real
-    review-to-visit ratio for a more realistic dollar estimate - this is a
-    heuristic, not a certified financial figure.
+    Takes an already-fetched review list (no scraping happens here).
+
+    `reviews_to_customers_multiplier` is a rough assumption for how many real
+    customers correspond to each review left. The dollar figure is a
+    heuristic estimate, not a certified financial number.
     """
-    reviews = fetch_reviews(search_query, review_limit)
     if not reviews:
-        return {"dominant_tiers": [], "matrix": [], "revenue_drag": []}
+        return {"dominant_tiers": [], "matrix": [], "revenue_drag": [], "summary": None}
+
+    summary, cell_mentions = _wait_scan(reviews)
 
     tiers = dominant_tiers(reviews, top_n=3)
     tier1 = tiers[0] if tiers else None
@@ -56,11 +98,8 @@ def build_wait_time_heatmap(
         bucket = _hour_bucket_label(dt.hour)
         if bucket is None:
             continue
-        day = DAY_ORDER[dt.weekday()]
-        cells[(day, bucket)].append(r)
+        cells[(DAY_ORDER[dt.weekday()], bucket)].append(r)
 
-    # Baseline tier-1 share across the whole dataset, to detect cells that
-    # underperform their normal mix.
     total_tier1 = sum(1 for r in reviews if r["rating"] == tier1) if tier1 else 0
     baseline_share = total_tier1 / len(reviews) if reviews else 0
 
@@ -88,6 +127,7 @@ def build_wait_time_heatmap(
                 "hour": bucket_label,
                 "review_count": total_in_cell,
                 "tier_pct": tier_pct,
+                "wait_mentions": cell_mentions.get((day, bucket_label), 0),
             })
 
             if total_in_cell >= 3 and tier1 is not None:
@@ -100,12 +140,10 @@ def build_wait_time_heatmap(
                 if shortfall_share > 0.15 and has_wait_language:
                     shortfall_reviews = shortfall_share * total_in_cell
                     estimated_customers = shortfall_reviews * reviews_to_customers_multiplier
-                    estimated_dollars = round(estimated_customers * avg_order_value, 2)
-
                     revenue_drag.append({
                         "day": day,
                         "hour": bucket_label,
-                        "estimated_dollars": estimated_dollars,
+                        "estimated_dollars": round(estimated_customers * avg_order_value, 2),
                         "note": (
                             f"{tier1}★ share dropped to {round(actual_share * 100, 1)}% "
                             f"(baseline {round(baseline_share * 100, 1)}%), with wait-time "
@@ -118,4 +156,5 @@ def build_wait_time_heatmap(
         "dominant_tiers": tiers,
         "matrix": matrix,
         "revenue_drag": revenue_drag,
+        "summary": summary,
     }
