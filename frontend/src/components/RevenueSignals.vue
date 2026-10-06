@@ -10,7 +10,7 @@ const props = defineProps({
 const isPreview = computed(() => props.result?.preview === true)
 
 const ICONS = { warning: '⚠️', opportunity: '💡', positive: '✅' }
-const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + written reviews' }
+const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + written reviews', web: 'Web mentions' }
 </script>
 
 <template>

@@ -175,3 +175,7 @@ def build_sentiment_drift(reviews: List[dict]) -> dict:
         "nlp": _language_summary(text_reviews(reviews), weekly_rows),
         "velocity": _velocity(reviews),
     }
+
+
+# Public alias: review pace, freshness and star mix for any list of reviews.
+review_velocity = _velocity

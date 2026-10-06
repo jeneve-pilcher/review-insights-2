@@ -6,6 +6,7 @@ from typing import List, Optional
 from dateutil import parser as date_parser
 
 from analysis.chart2_wait_time_heatmap import DAY_ORDER, HOUR_BUCKETS
+from analysis.platforms import mix_shift
 from analysis.review_utils import has_text
 from analysis.sentiment import WAIT_TIME_PHRASES, contains_any_phrase
 from analysis.trends import compare_means, terms_for_text
@@ -281,8 +282,10 @@ def _timeslot_signal(reviews: List[dict]) -> List[dict]:
                 return start, end
         return None
 
+    # Time of day only means something for Google: other platforms may give just a
+    # date, which would pile every review into the same hour.
     cells = defaultdict(list)
-    for r in reviews:
+    for r in (r for r in reviews if r.get("source", "google") == "google"):
         dt = _parse_dt(r["datetime_utc"])
         b = bucket(dt.hour) if dt else None
         if dt and b:
@@ -346,8 +349,15 @@ def build_revenue_signals(reviews: List[dict]) -> dict:
             "signals": [],
         }
 
+    momentum = _momentum_signals(reviews)
+    shift = mix_shift(reviews)
+    if shift and shift["shifted"]:
+        # Combined averages can mislead when the platform mix changed: say so on the signals it affects.
+        for s in momentum:
+            s["detail"] += " Heads up: " + shift["message"]
+
     signals = (
-        _momentum_signals(reviews)
+        momentum
         + _timeslot_signal(reviews)
         + _topic_signals(reviews)
         + _pace_signals(reviews)

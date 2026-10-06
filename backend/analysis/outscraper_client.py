@@ -27,6 +27,23 @@ _cache: dict = {}
 _cache_lock = threading.Lock()
 
 
+def cache_lookup(key):
+    """Shared by every review source: the stored value if still fresh, else None."""
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and time.time() - hit[0] < CACHE_TTL_SECONDS:
+            return hit[1]
+    return None
+
+
+def cache_store(key, value) -> None:
+    with _cache_lock:
+        _cache[key] = (time.time(), value)
+        if len(_cache) > CACHE_MAX_ENTRIES:
+            oldest = min(_cache, key=lambda k: _cache[k][0])
+            _cache.pop(oldest, None)
+
+
 def _parse_dt(value) -> Optional[datetime]:
     """Parse to a naive UTC datetime, or None if unparseable."""
     if not value:
@@ -64,7 +81,7 @@ def _call_outscraper(client, search_query: str, cutoff_ts: int):
         return client.google_maps_business_reviews(search_query, **kwargs)
 
 
-def _fetch_fresh(search_query: str, months: int) -> List[dict]:
+def _fetch_fresh(search_query: str, months: int) -> Tuple[List[dict], int]:
     api_key = config.require(config.OUTSCRAPER_API_KEY, "OUTSCRAPER_API_KEY")
     client = OutscraperClient(api_key=api_key)
 
@@ -77,8 +94,10 @@ def _fetch_fresh(search_query: str, months: int) -> List[dict]:
         raise HTTPException(status_code=502, detail=f"Error fetching reviews for '{search_query}': {exc}")
 
     normalized = []
+    raw_total = 0
     for place in results:
         for r in (place.get("reviews_data") or []):
+            raw_total += 1
             # Star-only reviews arrive with empty text. They stay in the list
             # (volume, rating, heatmap) and are skipped only by language analysis.
             text = (r.get("review_text") or "").strip()
@@ -98,30 +117,35 @@ def _fetch_fresh(search_query: str, months: int) -> List[dict]:
                 "rating": max(1, min(5, rating)),
                 "datetime_utc": r.get("review_datetime_utc"),
                 "author": r.get("author_title", "Anonymous"),
+                "source": "google",
             })
 
-    return normalized
+    return normalized, raw_total
+
+
+def fetch_reviews_with_notes(search_query: str, months: int) -> Tuple[List[dict], bool, List[str]]:
+    """Returns (reviews, served_from_cache, notes). Reviews are copies, safe to mutate."""
+    key = (search_query.strip().lower(), months, FETCH_CAP)
+    hit = cache_lookup(key)
+    if hit is not None:
+        reviews, notes = hit
+        return [dict(r) for r in reviews], True, list(notes)
+
+    reviews, raw_total = _fetch_fresh(search_query, months)
+    notes = []
+    if raw_total >= FETCH_CAP:
+        notes.append(
+            f"Google results hit the {FETCH_CAP}-review cap, so older reviews in this window may be missing. "
+            "A shorter window avoids that."
+        )
+    cache_store(key, (reviews, notes))
+    return [dict(r) for r in reviews], False, list(notes)
 
 
 def fetch_reviews_with_meta(search_query: str, months: int) -> Tuple[List[dict], bool]:
-    """Returns (reviews, served_from_cache). Reviews are copies, safe to mutate."""
-    key = (search_query.strip().lower(), months, FETCH_CAP)
-    now = time.time()
-
-    with _cache_lock:
-        hit = _cache.get(key)
-        if hit and now - hit[0] < CACHE_TTL_SECONDS:
-            return [dict(r) for r in hit[1]], True
-
-    reviews = _fetch_fresh(search_query, months)
-
-    with _cache_lock:
-        _cache[key] = (now, reviews)
-        if len(_cache) > CACHE_MAX_ENTRIES:
-            oldest = min(_cache, key=lambda k: _cache[k][0])
-            _cache.pop(oldest, None)
-
-    return [dict(r) for r in reviews], False
+    """Returns (reviews, served_from_cache)."""
+    reviews, cached, _ = fetch_reviews_with_notes(search_query, months)
+    return reviews, cached
 
 
 def fetch_reviews(search_query: str, months: int = 6) -> List[dict]:

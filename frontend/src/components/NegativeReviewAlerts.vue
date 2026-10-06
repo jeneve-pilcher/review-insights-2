@@ -12,6 +12,10 @@ const props = defineProps({
 })
 
 const readItems = computed(() => negativeReadItems(props.result?.summary))
+
+// Only worth showing which platform a review came from when there's more than one.
+const showSource = computed(() => (props.meta?.sources?.length ?? 0) > 1)
+const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp' }
 </script>
 
 <template>
@@ -45,6 +49,7 @@ const readItems = computed(() => negativeReadItems(props.result?.summary))
           <div class="negative-review-header">
             <span class="negative-review-rating">{{ r.rating }}★</span>
             <span class="negative-review-meta">
+              <span v-if="showSource" class="neg-source-chip">{{ SOURCE_LABELS[r.source] ?? r.source }}</span>
               <span
                 v-if="r.has_text"
                 class="neg-tone-pill"
@@ -86,6 +91,15 @@ const readItems = computed(() => negativeReadItems(props.result?.summary))
 .neg-tone-pill {
   background: #fde8e6;
   color: #a93226;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.neg-source-chip {
+  background: #eef6ff;
+  color: #1a5f9e;
   font-size: 11px;
   font-weight: 700;
   padding: 2px 8px;

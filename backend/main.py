@@ -1,23 +1,26 @@
+from datetime import datetime, timezone
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
-from analysis.chart1_sentiment_drift import build_sentiment_drift
-from analysis.chart2_wait_time_heatmap import build_wait_summary, build_wait_time_heatmap
-from analysis.chart3_competitor_share import build_competitor_share
-from analysis.insights import build_revenue_signals, trim_signals_for_preview
-from analysis.negative_reviews import build_negative_reviews, negative_summary
-from analysis.trends import build_trends, trim_for_preview
-from analysis.outscraper_client import fetch_reviews_with_meta, latest_review_date
-from analysis.review_utils import text_reviews
+from analysis import pipeline
+from analysis.mentions import default_terms
+from analysis.yelp_client import normalize_yelp_url
 from auth import CurrentUser, get_current_user
 from billing import router as billing_router
+from corporate import monitor
+from corporate.store import get_store
+from corporate.routes import internal_router, router as org_router
+from replies import router as replies_router
 from schemas import (
+    AcceptTermsRequest,
     EnterpriseContactRequest,
     SetBusinessLocationRequest,
+    SetYelpUrlRequest,
     UnifiedAnalysisRequest,
 )
-from supabase_client import delete_user, get_profile, set_business_location
+from supabase_client import delete_user, get_profile, get_supabase_admin, set_business_location
 
 app = FastAPI(title="Review Insights API")
 
@@ -29,6 +32,15 @@ app.add_middleware(
 )
 
 app.include_router(billing_router)
+app.include_router(org_router)
+app.include_router(internal_router)
+app.include_router(replies_router)
+
+
+@app.on_event("startup")
+def _start_monitor():
+    # Always-on monitoring: refreshes each location on a schedule (see corporate/monitor.py).
+    monitor.start_scheduler()
 
 
 @app.get("/api/health")
@@ -38,12 +50,40 @@ def health():
 
 @app.get("/api/me")
 def me(current_user: CurrentUser = Depends(get_current_user)):
+    profile = get_profile(current_user.id) or {}
+    try:
+        membership = get_store().find_membership(current_user.id, current_user.email)
+    except Exception:
+        membership = None   # the company tables haven't been created yet: carry on as a single-business account
     return {
         "id": current_user.id,
         "email": current_user.email,
         "tier": current_user.tier,
         "business_location": current_user.business_location,
+        "yelp_url": profile.get("yelp_url"),
+        "org_role": membership["role"] if membership else None,
+        "terms_version": profile.get("terms_version"),
+        "terms_accepted_at": profile.get("terms_accepted_at"),
     }
+
+
+@app.post("/api/me/accept-terms")
+def accept_terms(req: AcceptTermsRequest, current_user: CurrentUser = Depends(get_current_user)):
+    """Records which version of the Terms of Service this person agreed to, and when."""
+    accepted_at = datetime.now(timezone.utc).isoformat()
+    try:
+        get_supabase_admin().table("profiles").update(
+            {"terms_version": req.version.strip(), "terms_accepted_at": accepted_at}
+        ).eq("id", current_user.id).execute()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Could not record your agreement. If you just applied this update, run the terms SQL in "
+                f"Supabase first (see README). ({exc})"
+            ),
+        )
+    return {"terms_version": req.version.strip(), "terms_accepted_at": accepted_at}
 
 
 @app.post("/api/me/business-location")
@@ -60,6 +100,36 @@ def set_my_business_location(
         )
     set_business_location(current_user.id, req.business_location)
     return {"business_location": req.business_location}
+
+
+@app.post("/api/me/yelp-url")
+def set_my_yelp_url(
+    req: SetYelpUrlRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    # Set-once for the same reason as the business location.
+    profile = get_profile(current_user.id) or {}
+    if profile.get("yelp_url"):
+        raise HTTPException(
+            status_code=400,
+            detail="A Yelp page is already set for this account. Contact support to change it.",
+        )
+    try:
+        url = normalize_yelp_url(req.yelp_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    try:
+        get_supabase_admin().table("profiles").update({"yelp_url": url}).eq("id", current_user.id).execute()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Could not save your Yelp link. If you just applied this update, add the column in "
+                f"Supabase first: alter table public.profiles add column if not exists yelp_url text. ({exc})"
+            ),
+        )
+    return {"yelp_url": url}
 
 
 @app.delete("/api/me")
@@ -91,9 +161,11 @@ def _require_business_location(current_user: CurrentUser) -> str:
 
 
 # ---------------------------------------------------------
-# ONE review pull feeds every panel: Sentiment Drift + Weekly Themes (all
-# tiers, with a trimmed Trends preview), plus the full Wait-Time Heatmap, Negative
-# Review Alerts and Trends for Pro/Enterprise.
+# ONE click, ONE pull per platform. Google is always pulled once; Yelp is pulled
+# once more if you're on Pro/Enterprise, have saved your Yelp page, and ticked it.
+# Every panel is built from those pulls (see analysis/pipeline.py). Switching `view`
+# (combined / google / yelp) re-analyzes the same reviews, so it costs nothing
+# inside the cache window.
 # ---------------------------------------------------------
 @app.post("/api/analyze/all")
 def analyze_all(
@@ -101,57 +173,33 @@ def analyze_all(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     location = _require_business_location(current_user)
+    paid = current_user.tier in ("pro", "enterprise")
 
-    reviews, from_cache = fetch_reviews_with_meta(location, req.months)
+    profile = get_profile(current_user.id) or {}
+    yelp_url = profile.get("yelp_url") if paid else None
 
-    result = {
-        "meta": {
-            "reviews_analyzed": len(reviews),
-            "reviews_with_text": len(text_reviews(reviews)),
-            "reviews_star_only": len(reviews) - len(text_reviews(reviews)),
-            "months": req.months,
-            "latest_review_date": latest_review_date(reviews),
-            "from_cache": from_cache,
-        },
-        "sentiment_drift": build_sentiment_drift(reviews),
-        "wait_time_heatmap": None,
-        "negative_reviews": None,
-        "trends": None,
-        "signals": None,
-        "competitors": None,
-        # Free-tier "taste": language findings only, no charts or review text.
-        "wait_time_preview": None,
-        "negative_preview": None,
-    }
+    reviews_by_source, cached_flags, notes, _fresh = pipeline.pull_reviews(
+        location, yelp_url, req.months, want_yelp=paid and "yelp" in req.sources
+    )
+    mentions = None
+    if paid and req.mentions:
+        terms = (req.mention_terms or "").strip() or default_terms(location)
+        mentions = pipeline.pull_mentions(terms, req.months)
 
-    if current_user.tier in ("pro", "enterprise"):
-        result["wait_time_heatmap"] = build_wait_time_heatmap(
-            reviews,
-            req.avg_order_value,
-            req.reviews_to_customers_multiplier,
-        )
-        result["negative_reviews"] = build_negative_reviews(
-            reviews,
-            location,
-            alert_email=current_user.email,
-        )
-        result["trends"] = build_trends(reviews)
-        result["signals"] = build_revenue_signals(reviews)
-
-        # Optional competitor comparison, in the same click. Your own business
-        # reuses the pull above; each competitor is one extra pull.
-        competitors = [c for c in req.competitors if c.search_query.strip()]
-        if competitors:
-            businesses = [{"name": "Your Business", "search_query": location}]
-            businesses.extend(c.model_dump() for c in competitors)
-            result["competitors"] = build_competitor_share(businesses, req.months, own_reviews=reviews)
-    else:
-        result["signals"] = trim_signals_for_preview(build_revenue_signals(reviews))
-        result["trends"] = trim_for_preview(build_trends(reviews))
-        result["wait_time_preview"] = build_wait_summary(reviews)
-        result["negative_preview"] = negative_summary(reviews)
-
-    return result
+    return pipeline.assemble(
+        reviews_by_source,
+        cached_flags,
+        notes,
+        view=req.view,
+        months=req.months,
+        location=location,
+        paid=paid,
+        avg_order_value=req.avg_order_value,
+        reviews_to_customers_multiplier=req.reviews_to_customers_multiplier,
+        alert_email=current_user.email,
+        competitors=[c.model_dump() for c in req.competitors if c.search_query.strip()],
+        mentions=mentions,
+    )
 
 
 # ---------------------------------------------------------

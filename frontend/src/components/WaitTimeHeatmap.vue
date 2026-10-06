@@ -53,13 +53,14 @@ const sortedDrag = computed(() => {
     </div>
     <p class="chart-desc">
       Maps operational hours against your top 3 dominant star tiers, and estimates the dollar
-      value of service-delay drag using your average order value.
+      value of service-delay drag using your average order value. Time of day uses Google
+      reviews only, because other platforms may give just a date.
       <em>Dollar figures are a heuristic estimate, not a certified financial calculation.</em>
     </p>
 
     <p v-if="loading" class="status">Analyzing…</p>
 
-    <template v-if="result">
+    <template v-if="result && result.matrix.length">
       <NlpCallout
         :items="readItems"
         technique="Phrase detection (“long wait”, “slow service”, “took forever” and similar) on each review's text, matched to the day and hour the review was posted."
@@ -118,6 +119,10 @@ const sortedDrag = computed(() => {
       </div>
       <p v-else class="status">No significant wait-time revenue drag detected.</p>
     </template>
+    <p v-else-if="result" class="status">
+      No Google reviews are in this view, and time of day uses Google reviews. Switch the view
+      to Combined or Google above to see it.
+    </p>
     <p v-else-if="!loading" class="status">Run analysis above to see this chart.</p>
   </section>
 </template>

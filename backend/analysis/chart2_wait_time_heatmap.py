@@ -4,13 +4,16 @@ from typing import List
 from dateutil import parser as date_parser
 
 from analysis.outscraper_client import dominant_tiers
-from analysis.review_utils import text_reviews
+from analysis.pii import redact_pii
+from analysis.review_utils import has_text, text_reviews
 from analysis.sentiment import WAIT_TIME_PHRASES, contains_any_phrase
 
 DAY_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 # 2-hour buckets from 9am to 11pm, matching a typical service window.
 HOUR_BUCKETS = [(h, h + 2) for h in range(9, 23, 2)]
+
+MAX_TEXT = 500  # characters of review text sent to the browser
 
 
 def _parse_dt(value):
@@ -29,24 +32,58 @@ def _hour_bucket_label(hour: int):
     return None
 
 
+def _grid_hours_label() -> str:
+    def part(h):
+        return f"{h % 12 or 12}{'am' if h < 12 else 'pm'}"
+
+    return f"{part(HOUR_BUCKETS[0][0])}-{part(HOUR_BUCKETS[-1][1])}"
+
+
+def _matched_phrases(text: str) -> List[str]:
+    lowered = text.lower()
+    return [p for p in WAIT_TIME_PHRASES if p in lowered]
+
+
+def _review_item(r: dict) -> dict:
+    """A review as shown on the page: author never included, text scrubbed of
+    emails / phone numbers / order numbers (best effort), star-only flagged."""
+    text = (r.get("text") or "").strip()
+    return {
+        "rating": r["rating"],
+        "review_date": r["datetime_utc"],
+        "has_text": bool(text),
+        "text": redact_pii(text)[:MAX_TEXT] if text else "",
+        "wait_phrases": _matched_phrases(text) if text else [],
+    }
+
+
 def _wait_scan(reviews: List[dict]):
     """Phrase detection: which reviews talk about waiting / slow service, and
-    when (day + hour bucket) they were posted. Returns (summary, per-cell counts)."""
+    when (day + hour bucket) they were posted.
+    Returns (summary, per-cell mention counts, the mentioning reviews newest first)."""
     mentions = 0
     phrase_counts: Counter = Counter()
     cell_mentions: Counter = Counter()
+    mention_rows = []
 
     for r in reviews:
-        lowered = r["text"].lower()
-        matched = [p for p in WAIT_TIME_PHRASES if p in lowered]
+        text = (r.get("text") or "").strip()
+        matched = _matched_phrases(text) if text else []
         if not matched:
             continue
         mentions += 1
         phrase_counts.update(matched)
         dt = _parse_dt(r["datetime_utc"])
         bucket = _hour_bucket_label(dt.hour) if dt else None
+        day = DAY_ORDER[dt.weekday()] if dt else None
         if dt and bucket:
-            cell_mentions[(DAY_ORDER[dt.weekday()], bucket)] += 1
+            cell_mentions[(day, bucket)] += 1
+        item = _review_item(r)
+        item["day"] = day if bucket else None   # None = posted outside the grid hours
+        item["hour"] = bucket
+        mention_rows.append((dt, item))
+
+    mention_rows.sort(key=lambda x: (x[0] is not None, x[0]), reverse=True)
 
     hotspot = None
     if cell_mentions:
@@ -62,7 +99,7 @@ def _wait_scan(reviews: List[dict]):
         "top_phrases": [{"phrase": p, "count": c} for p, c in phrase_counts.most_common(3)],
         "hotspot": hotspot,
     }
-    return summary, cell_mentions
+    return summary, cell_mentions, [item for _, item in mention_rows]
 
 
 def build_wait_summary(reviews: List[dict]) -> dict:
@@ -81,16 +118,22 @@ def build_wait_time_heatmap(
     `reviews_to_customers_multiplier` is a rough assumption for how many real
     customers correspond to each review left. The dollar figure is a
     heuristic estimate, not a certified financial number.
+
+    Every grid cell carries the exact reviews behind it, and `wait_reviews`
+    lists every review that matched a wait phrase, so nothing is a black box.
     """
     if not reviews:
-        return {"dominant_tiers": [], "matrix": [], "revenue_drag": [], "summary": None}
+        return {
+            "dominant_tiers": [], "matrix": [], "revenue_drag": [], "summary": None,
+            "wait_reviews": [], "wait_phrases": WAIT_TIME_PHRASES, "coverage": None,
+        }
 
-    summary, cell_mentions = _wait_scan(reviews)
+    summary, cell_mentions, mention_items = _wait_scan(reviews)
 
     tiers = dominant_tiers(reviews, top_n=3)
     tier1 = tiers[0] if tiers else None
 
-    cells: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    cells: dict[tuple[str, str], list] = defaultdict(list)
     for r in reviews:
         dt = _parse_dt(r["datetime_utc"])
         if dt is None:
@@ -98,7 +141,9 @@ def build_wait_time_heatmap(
         bucket = _hour_bucket_label(dt.hour)
         if bucket is None:
             continue
-        cells[(DAY_ORDER[dt.weekday()], bucket)].append(r)
+        cells[(DAY_ORDER[dt.weekday()], bucket)].append((dt, r))
+
+    placed = sum(len(v) for v in cells.values())
 
     total_tier1 = sum(1 for r in reviews if r["rating"] == tier1) if tier1 else 0
     baseline_share = total_tier1 / len(reviews) if reviews else 0
@@ -109,7 +154,8 @@ def build_wait_time_heatmap(
     for day in DAY_ORDER:
         for bucket_start, bucket_end in HOUR_BUCKETS:
             bucket_label = f"{bucket_start:02d}:00-{bucket_end:02d}:00"
-            cell_reviews = cells.get((day, bucket_label), [])
+            entries = sorted(cells.get((day, bucket_label), []), key=lambda e: e[0], reverse=True)
+            cell_reviews = [r for _, r in entries]
             total_in_cell = len(cell_reviews)
 
             tier_counts = {t: 0 for t in tiers}
@@ -128,6 +174,7 @@ def build_wait_time_heatmap(
                 "review_count": total_in_cell,
                 "tier_pct": tier_pct,
                 "wait_mentions": cell_mentions.get((day, bucket_label), 0),
+                "reviews": [_review_item(r) for r in cell_reviews],
             })
 
             if total_in_cell >= 3 and tier1 is not None:
@@ -157,4 +204,12 @@ def build_wait_time_heatmap(
         "matrix": matrix,
         "revenue_drag": revenue_drag,
         "summary": summary,
+        "wait_reviews": mention_items,
+        "wait_phrases": WAIT_TIME_PHRASES,
+        "coverage": {
+            "total_reviews": len(reviews),
+            "on_grid": placed,
+            "off_grid": len(reviews) - placed,
+            "grid_hours": _grid_hours_label(),
+        },
     }

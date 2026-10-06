@@ -1,6 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { analyzeAll } from '../api'
+import { defaultMentionTerms } from '../utils/mentions'
+import { MAX_MONTHS, parseMonths } from '../utils/months'
 
 const props = defineProps({
   businessLocation: { type: String, required: true },
@@ -10,11 +12,31 @@ const props = defineProps({
   showRevenueInputs: { type: Boolean, default: false },
   // Pro/Enterprise: optional competitors, analyzed in the same click.
   showCompetitors: { type: Boolean, default: false },
+  // Pro/Enterprise with a saved Yelp page: lets the user tick Yelp (one extra pull).
+  yelpUrl: { type: String, default: null },
+  // Pro/Enterprise: optionally search the web for mentions (two extra searches).
+  showMentions: { type: Boolean, default: false },
+  // Which pulled platform(s) the panels analyze: 'combined' | 'google' | 'yelp'.
+  view: { type: String, default: 'combined' },
 })
 
 const emit = defineEmits(['result', 'update:months'])
 
-const MONTH_OPTIONS = [1, 3, 6, 12, 24]
+// Free-typed number of months (1 to 60). We only tell the parent about valid numbers.
+const monthsText = ref(String(props.months))
+const monthsCheck = computed(() => parseMonths(monthsText.value))
+
+watch(
+  () => props.months,
+  (m) => {
+    if (monthsCheck.value.value !== m) monthsText.value = String(m)
+  }
+)
+
+function onMonthsInput(event) {
+  monthsText.value = event.target.value
+  if (monthsCheck.value.valid) emit('update:months', monthsCheck.value.value)
+}
 
 const avgOrderValue = ref(35)
 const multiplier = ref(20)
@@ -22,6 +44,10 @@ const loading = ref(false)
 const error = ref('')
 
 const competitors = ref([])
+const includeYelp = ref(true)
+const includeMentions = ref(false)
+const mentionTerms = ref('')
+const mentionPlaceholder = computed(() => defaultMentionTerms(props.businessLocation))
 
 function addCompetitor() {
   if (competitors.value.length >= 5) return
@@ -32,14 +58,23 @@ function removeCompetitor(index) {
   competitors.value.splice(index, 1)
 }
 
-async function runAnalysis() {
+// `viewOverride` lets the dashboard's view switch re-run instantly with a new view.
+async function runAnalysis(viewOverride) {
+  if (!monthsCheck.value.valid) {
+    error.value = monthsCheck.value.message
+    return
+  }
   loading.value = true
   error.value = ''
   try {
     const data = await analyzeAll({
-      months: props.months,
+      months: monthsCheck.value.value,
       avgOrderValue: avgOrderValue.value,
       reviewsToCustomersMultiplier: multiplier.value,
+      sources: props.yelpUrl && includeYelp.value ? ['google', 'yelp'] : ['google'],
+      view: typeof viewOverride === 'string' ? viewOverride : props.view,
+      mentions: props.showMentions && includeMentions.value,
+      mentionTerms: props.showMentions && includeMentions.value && mentionTerms.value.trim() ? mentionTerms.value.trim() : null,
       competitors: props.showCompetitors
         ? competitors.value
             .filter((c) => c.search_query.trim())
@@ -53,28 +88,34 @@ async function runAnalysis() {
     loading.value = false
   }
 }
+
+defineExpose({ runAnalysis })
 </script>
 
 <template>
   <section class="chart-section unified-form">
     <h3>🔎 Run Analysis</h3>
     <p class="chart-desc">
-      One review pull for <strong>{{ businessLocation }}</strong> powers every panel below,
-      all from this one button. A shorter time window runs faster and uses fewer scraping credits.
+      Your Google reviews for <strong>{{ businessLocation }}</strong> are pulled once (plus Yelp, if
+      you tick it below) and shared by every panel, all from this one button. A shorter time
+      window runs faster and uses fewer scraping credits.
     </p>
 
     <div class="analysis-form">
       <label class="field">
-        <span>Pull reviews from the last</span>
-        <select
-          class="months-select"
-          :value="months"
-          @change="emit('update:months', Number($event.target.value))"
-        >
-          <option v-for="m in MONTH_OPTIONS" :key="m" :value="m">
-            {{ m }} {{ m === 1 ? 'month' : 'months' }}
-          </option>
-        </select>
+        <span>Analyze the last (months)</span>
+        <input
+          class="months-input"
+          :class="{ invalid: !monthsCheck.valid }"
+          type="number"
+          inputmode="numeric"
+          min="1"
+          :max="MAX_MONTHS"
+          step="1"
+          required
+          :value="monthsText"
+          @input="onMonthsInput"
+        />
       </label>
       <template v-if="showRevenueInputs">
         <label class="field">
@@ -102,15 +143,69 @@ async function runAnalysis() {
       <button v-if="competitors.length < 5" class="add-btn" @click="addCompetitor">+ Add competitor</button>
     </div>
 
-    <button class="run-btn" style="width: auto; padding: 10px 28px; margin-top: 16px" @click="runAnalysis" :disabled="loading">
+    <div v-if="yelpUrl" class="source-picker">
+      <label class="source-check">
+        <input v-model="includeYelp" type="checkbox" />
+        Include Yelp reviews <span class="source-hint">(one extra review pull)</span>
+      </label>
+    </div>
+
+    <div v-if="showMentions" class="source-picker">
+      <label class="source-check">
+        <input v-model="includeMentions" type="checkbox" />
+        Include internet mentions <span class="source-hint">(news, blogs, forums, social; two extra web searches)</span>
+      </label>
+      <div v-if="includeMentions" style="margin-top: 6px">
+        <input v-model="mentionTerms" type="text" class="months-input" maxlength="200" :placeholder="mentionPlaceholder" />
+        <div class="oc-note">Words to search for. Leave blank to search: <strong>{{ mentionPlaceholder }}</strong></div>
+      </div>
+    </div>
+
+    <button class="run-btn" style="width: auto; padding: 10px 28px; margin-top: 16px" @click="runAnalysis()" :disabled="loading">
       {{ loading ? 'Analyzing…' : 'Run Analysis' }}
     </button>
 
-    <p v-if="error" class="status error">{{ error }}</p>
+    <p v-if="!monthsCheck.valid" class="status error" style="margin-top: 6px">{{ monthsCheck.message }}</p>
+    <p v-else class="oc-note" style="margin-top: 6px">
+      Any whole number of months, up to {{ MAX_MONTHS }}. Longer windows pull more reviews (there's a cap) and cost more.
+    </p>
+    <p v-if="error && monthsCheck.valid" class="status error">{{ error }}</p>
   </section>
 </template>
 
 <style>
+.source-picker {
+  margin-top: 14px;
+  font-size: 13px;
+}
+
+.source-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.source-hint {
+  color: #888;
+  font-size: 12px;
+}
+
+.months-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d3d6db;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: white;
+}
+
+.months-input.invalid {
+  border-color: #e74c3c;
+  background: #fff6f5;
+}
+
 .months-select {
   width: 100%;
   padding: 8px 10px;

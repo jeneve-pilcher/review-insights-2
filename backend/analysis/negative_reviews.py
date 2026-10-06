@@ -51,6 +51,7 @@ def _collect(reviews: List[dict], location_label: str) -> List[dict]:
             "rating": r["rating"],
             "review_date": r["datetime_utc"],
             "text": r["text"],
+            "source": r.get("source", "google"),
             "_dt": dt,
             "_key": _review_key(location_label, r["datetime_utc"], r["rating"], r["text"]),
         })
@@ -136,6 +137,7 @@ def build_negative_reviews(
             "rating": r["rating"],
             "review_date": r["review_date"],
             "has_text": written,
+            "source": r.get("source", "google"),
             # Author name is dropped entirely; text is best-effort scrubbed
             # of emails/phone numbers/order numbers before display.
             "redacted_text": redact_pii(r["text"]) if written else "",
