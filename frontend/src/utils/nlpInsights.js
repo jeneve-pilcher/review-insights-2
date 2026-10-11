@@ -93,6 +93,22 @@ export function driftReadItems(result) {
     if (words) items.push({ tone: 'info', text: `Most-mentioned words: ${words}.` })
   }
 
+  if (nlp && nlp.web_mentions && nlp.web_sentiment != null) {
+    const reviewsTone = nlp.overall_sentiment != null ? ` (your written reviews: ${sentimentLabel(nlp.overall_sentiment)})` : ''
+    items.push({
+      tone: nlp.web_sentiment <= -0.2 ? 'warn' : nlp.web_sentiment >= 0.3 ? 'good' : 'info',
+      text: `${nlp.web_mentions} web mention${nlp.web_mentions === 1 ? '' : 's'} read ${sentimentLabel(nlp.web_sentiment)} (${signed(nlp.web_sentiment)})${reviewsTone}. They're counted separately and never affect star ratings.`,
+    })
+  }
+
+  for (const u of nlp?.unrated_sources ?? []) {
+    if (u.sentiment == null) continue
+    items.push({
+      tone: u.sentiment <= -0.2 ? 'warn' : u.sentiment >= 0.3 ? 'good' : 'info',
+      text: `${u.count} ${u.label} review${u.count === 1 ? '' : 's'} read ${sentimentLabel(u.sentiment)} (${signed(u.sentiment)}). ${u.label} reviews have no star ratings, so they're counted separately and never affect your ratings.`,
+    })
+  }
+
   items.push(...velocityReadItems(result.velocity))
   return items
 }

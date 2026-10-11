@@ -6,7 +6,8 @@ from dateutil import parser as date_parser
 from analysis.chart1_sentiment_drift import review_velocity
 from analysis.review_utils import text_reviews
 
-SOURCE_LABELS = {"google": "Google", "yelp": "Yelp"}
+SOURCE_LABELS = {"google": "Google", "yelp": "Yelp", "opentable": "OpenTable", "doordash": "DoorDash",
+                 "grubhub": "Grubhub", "ubereats": "Uber Eats"}
 
 
 def _label(source: str) -> str:
@@ -88,10 +89,40 @@ def _row(source: str, reviews: List[dict]) -> dict:
     }
 
 
-def build_platform_comparison(reviews_by_source: Dict[str, List[dict]]) -> dict:
+def _web_row(mentions: dict) -> dict:
+    s = mentions["summary"]
+    dates = [d for d in (_parse_dt(i.get("date")) for i in mentions["items"]) if d is not None]
+    return {
+        "source": "web", "label": "Web mentions", "kind": "mentions",
+        "reviews": s["count"], "text_reviews": s["count"],
+        "avg_rating": None, "low_star_pct": None,                 # no stars: never mixed into rating math
+        "avg_sentiment": s["avg_sentiment"], "negative_count": s["negative_count"], "positive_count": s["positive_count"],
+        "star_counts": {str(i): 0 for i in range(1, 6)},
+        "recent_per_week": None, "earlier_per_week": None,
+        "last_review_date": max(dates).strftime("%Y-%m-%d") if dates else None, "days_since_last": None,
+    }
+
+
+def _unrated_row(b: dict) -> dict:
+    s = b["summary"]
+    dates = [d for d in (_parse_dt(i.get("date")) for i in b["items"]) if d is not None]
+    return {
+        "source": b["source"], "label": b["label"], "kind": "unrated",
+        "reviews": s["count"], "text_reviews": s["count"], "avg_rating": None, "low_star_pct": None,
+        "avg_sentiment": s["avg_sentiment"], "negative_count": s["negative_count"], "positive_count": s["positive_count"],
+        "star_counts": {str(i): 0 for i in range(1, 6)}, "recent_per_week": None, "earlier_per_week": None,
+        "last_review_date": max(dates).strftime("%Y-%m-%d") if dates else None, "days_since_last": None,
+        "store_rating": b.get("store_rating"), "store_ratings": b.get("store_ratings"),   # the app's own average, shown separately
+    }
+
+
+def build_platform_comparison(reviews_by_source: Dict[str, List[dict]], mentions: Optional[dict] = None,
+                              unrated: Optional[Dict[str, dict]] = None) -> dict:
     """Side-by-side numbers for every platform that was pulled, plus the mix-shift check."""
     everything = [r for rs in reviews_by_source.values() for r in rs]
-    return {
-        "platforms": [_row(src, rs) for src, rs in reviews_by_source.items()],
-        "mix": mix_shift(everything),
-    }
+    rows = [_row(src, rs) for src, rs in reviews_by_source.items()]
+    if mentions and mentions.get("status") == "ok":
+        rows.append(_web_row(mentions))
+    for b in (unrated or {}).values():
+        rows.append(_unrated_row(b))
+    return {"platforms": rows, "mix": mix_shift(everything)}

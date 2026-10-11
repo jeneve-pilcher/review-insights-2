@@ -67,7 +67,6 @@ const chartOptions = {
   <section class="chart-section">
     <div class="title-row">
       <h3>🏁 Competitor Semantic Share Matrix</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <span class="data-basis">Each business: star tiers from all its reviews · themes from written reviews</span>
     </div>
     <p class="chart-desc">

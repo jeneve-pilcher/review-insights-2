@@ -9,6 +9,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 import config
 from analysis import pipeline
 from analysis.mentions import default_terms
+from analysis.delivery_clients import normalize_doordash_url, normalize_grubhub_url, normalize_ubereats_url
+from analysis.opentable_client import normalize_opentable_url
 from analysis.yelp_client import normalize_yelp_url
 from auth import CurrentUser, get_current_user
 from corporate import metrics, monitor
@@ -17,6 +19,7 @@ from corporate.schemas import (
     AlertUpdate,
     BudgetUpdate,
     ImportRequest,
+    IndustryUpdate,
     LocationIn,
     LocationUpdate,
     MemberAdd,
@@ -24,12 +27,20 @@ from corporate.schemas import (
     OrgCreate,
 )
 from corporate.store import DuplicateMember, get_store
+from analysis import industries
+from analysis import zocdoc_client
+from analysis.industry_trends import themes_in_text
+from corporate.providers import can_see_names, provider_view
+from corporate import industry_rollup
+from branding import public_branding
+from credits import rates as credit_rates, wallet
 
 router = APIRouter(prefix="/api/org", tags=["organization"])
 internal_router = APIRouter(prefix="/api/internal", tags=["internal"])
 
 ALLOWED_TIERS = {t.strip() for t in os.environ.get("ORG_ALLOWED_TIERS", "pro,enterprise").split(",") if t.strip()}
-DEFAULT_BUDGET = int(os.environ.get("DEFAULT_MONTHLY_BUDGET_REVIEWS", "5000"))
+# An optional monthly spending limit (dollars of credit) for new companies. 0 or blank = no limit.
+DEFAULT_LIMIT_USD = float(os.environ.get("DEFAULT_MONTHLY_LIMIT_USD", "0") or 0) or None
 MAX_LOCATIONS = int(os.environ.get("MAX_LOCATIONS_PER_ORG", "500"))
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -64,6 +75,25 @@ def _clean_email(value):
     if not EMAIL_RE.match(value):
         raise HTTPException(status_code=400, detail=f"'{value}' isn't a valid email address.")
     return value
+
+
+def _clean_link(value, normalizer):
+    value = (value or "").strip()
+    if not value:
+        return None
+    try:
+        return normalizer(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# The reservation platforms a location can also be pulled from (through Apify).
+EXTRA_LINKS = ("opentable_url", "doordash_url", "ubereats_url", "grubhub_url")
+
+
+def _other_sources(loc: dict) -> dict:
+    """{"opentable": link, ...} for the reservation pages saved on this location."""
+    return {col[:-4]: loc[col] for col in EXTRA_LINKS if loc.get(col)}
 
 
 def _clean_yelp(value):
@@ -101,16 +131,23 @@ SNAPSHOT_FIELDS = ("run_at", "reviews_total", "reviews_google", "reviews_yelp", 
                    "avg_sentiment", "wait_share_pct", "negative_count", "rising_topics", "signals")
 
 
-def _location_row(loc: dict, snap, open_alerts: int) -> dict:
-    row = {k: loc.get(k) for k in ("id", "name", "brand", "region", "google_query", "yelp_url", "manager_email", "is_active")}
+def _location_row(loc: dict, snap, open_alerts: int, show_providers: bool = False) -> dict:
+    row = {k: loc.get(k) for k in ("id", "name", "brand", "region", "google_query", "yelp_url", "opentable_url", "doordash_url", "ubereats_url", "grubhub_url", "manager_email", "is_active")}
     row["snapshot"] = {k: snap.get(k) for k in SNAPSHOT_FIELDS} if snap else None
+    row["top_theme"] = ((snap or {}).get("industry") or {}).get("top")      # the industry theme to look at first, if any
     row["open_alerts"] = open_alerts
+    # Doctor pages name individual doctors, so they are shown only to people allowed to see provider names.
+    row["provider_links"] = (loc.get("provider_links") or []) if show_providers else None
     return row
+
+
+def _show_provider_names(member: dict) -> bool:
+    return bool(member["org"].get("provider_data_enabled")) and can_see_names(member)
 
 
 def _enforce_budget(member: dict) -> None:
     if monitor.usage_status(get_store(), member["org"])["over"]:
-        raise HTTPException(status_code=402, detail="This month's review budget has been used. The owner can raise it.")
+        raise HTTPException(status_code=402, detail="This month's spending limit has been reached. The owner can raise it.")
 
 
 # --------------------------------------------------------------------- org
@@ -121,7 +158,7 @@ def create_org(req: OrgCreate, current_user: CurrentUser = Depends(get_current_u
         raise HTTPException(status_code=403, detail="Multi-location features need a Pro or Enterprise plan.")
     if store.find_membership(current_user.id, current_user.email):
         raise HTTPException(status_code=400, detail="You're already part of an organization.")
-    org = store.create_org(req.name.strip(), current_user.id, current_user.email, DEFAULT_BUDGET)
+    org = store.create_org(req.name.strip(), current_user.id, current_user.email, DEFAULT_LIMIT_USD)
     store.add_audit(org["id"], current_user.id, current_user.email.lower(), "org_create", org["name"], {})
     return {"id": org["id"], "name": org["name"]}
 
@@ -131,7 +168,11 @@ def get_org(member: dict = Depends(get_member)):
     store = get_store()
     org = member["org"]
     return {
-        "org": {"id": org["id"], "name": org["name"], "monthly_budget_reviews": org["monthly_budget_reviews"]},
+        "org": {"id": org["id"], "name": org["name"], "monthly_budget_usd": org.get("monthly_budget_usd"),
+                "industry": org.get("industry") or industries.DEFAULT, "white_label": bool(org.get("white_label")),
+                "pack": industries.public_pack(industries.get_pack(org.get("industry"))),
+                "provider_data_enabled": bool(org.get("provider_data_enabled")),
+                "branding": public_branding(org)},
         "role": member["role"],
         "email": member["email"],
         "can": {a: can(member, a) for a in ("manage_members", "manage_admins", "manage_locations", "run_location",
@@ -143,13 +184,26 @@ def get_org(member: dict = Depends(get_member)):
     }
 
 
+@router.put("/industry")
+def set_org_industry(req: IndustryUpdate, member: dict = Depends(get_member)):
+    """The company's industry decides which themes and graphs its locations get. Owner and admins can change it."""
+    _require(member, "manage_locations")
+    if not industries.is_selectable(req.industry):
+        raise HTTPException(status_code=400, detail="That industry isn't available yet.")
+    old = member["org"].get("industry") or industries.DEFAULT
+    get_store().update_org(member["org_id"], industry=req.industry)
+    _audit(member, "industry_change", None, {"from": old, "to": req.industry})
+    return {"industry": req.industry}
+
+
 @router.patch("/budget")
 def set_budget(req: BudgetUpdate, member: dict = Depends(get_member)):
     _require(member, "set_budget")
-    old = member["org"]["monthly_budget_reviews"]
-    get_store().update_org(member["org_id"], monthly_budget_reviews=req.monthly_budget_reviews)
-    _audit(member, "budget_change", None, {"from": old, "to": req.monthly_budget_reviews})
-    return {"monthly_budget_reviews": req.monthly_budget_reviews}
+    old = member["org"].get("monthly_budget_usd")
+    new = round(req.monthly_budget_usd, 2) if req.monthly_budget_usd is not None else None     # None = no limit
+    get_store().update_org(member["org_id"], monthly_budget_usd=new)
+    _audit(member, "budget_change", None, {"from": old, "to": new})
+    return {"monthly_budget_usd": new}
 
 
 # ----------------------------------------------------------------- members
@@ -201,12 +255,41 @@ def remove_member(member_id: str, member: dict = Depends(get_member)):
 
 
 # --------------------------------------------------------------- locations
-def _validate_location(data: dict) -> dict:
+def _clean_providers(links) -> list:
+    """Zocdoc doctor pages for a location: normalized, de-duplicated, and capped."""
+    seen, out = set(), []
+    for raw in links or []:
+        url = zocdoc_client.normalize_zocdoc_url(raw)
+        if url not in seen:
+            seen.add(url)
+            out.append(url)
+    if len(out) > zocdoc_client.MAX_PROVIDERS:
+        raise ValueError(f"A location can track up to {zocdoc_client.MAX_PROVIDERS} doctors (each refresh is billed per result).")
+    return out
+
+
+def _validate_location(data: dict, member: dict = None) -> dict:
     out = dict(data)
+    if "provider_links" in out:
+        links = out["provider_links"] or []
+        if links and not ((member or {}).get("org") or {}).get("provider_data_enabled"):
+            raise HTTPException(status_code=400, detail="Provider-level data isn't turned on for this company. Ask your account administrator.")
+        try:
+            out["provider_links"] = _clean_providers(links)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     if "manager_email" in out:
         out["manager_email"] = _clean_email(out["manager_email"])
     if "yelp_url" in out:
         out["yelp_url"] = _clean_yelp(out["yelp_url"])
+    if "opentable_url" in out:
+        out["opentable_url"] = _clean_link(out["opentable_url"], normalize_opentable_url)
+    if "doordash_url" in out:
+        out["doordash_url"] = _clean_link(out["doordash_url"], normalize_doordash_url)
+    if "ubereats_url" in out:
+        out["ubereats_url"] = _clean_link(out["ubereats_url"], normalize_ubereats_url)
+    if "grubhub_url" in out:
+        out["grubhub_url"] = _clean_link(out["grubhub_url"], normalize_grubhub_url)
     for k in ("name", "google_query", "brand", "region"):
         if k in out and isinstance(out[k], str):
             out[k] = out[k].strip() or None
@@ -218,7 +301,8 @@ def list_locations(member: dict = Depends(get_member)):
     store = get_store()
     snaps = store.latest_snapshots_for_org(member["org_id"])
     alerts = _open_alert_counts(member)
-    return [_location_row(l, snaps.get(l["id"]), alerts.get(l["id"], 0)) for l in _visible_locations(member)]
+    show = _show_provider_names(member)
+    return [_location_row(l, snaps.get(l["id"]), alerts.get(l["id"], 0), show) for l in _visible_locations(member)]
 
 
 @router.post("/locations")
@@ -227,24 +311,27 @@ def add_location(req: LocationIn, member: dict = Depends(get_member)):
     store = get_store()
     if len(store.list_locations(member["org_id"])) >= MAX_LOCATIONS:
         raise HTTPException(status_code=400, detail=f"This organization is at its limit of {MAX_LOCATIONS} locations.")
-    data = _validate_location(_fields(req))
+    data = _validate_location(_fields(req), member)
     if not data.get("name") or not data.get("google_query"):
         raise HTTPException(status_code=400, detail="A name and a Google search (name + address) are required.")
     loc = store.add_location(member["org_id"], data)
     _audit(member, "location_add", loc["name"], {})
-    return _location_row(loc, None, 0)
+    return _location_row(loc, None, 0, _show_provider_names(member))
 
 
 def parse_locations_csv(text: str):
     """Returns (rows, errors). Headers: name, google_query (aliases: google, address), brand, region,
-    yelp_url (alias yelp), manager_email (aliases: manager, email)."""
+    yelp_url (alias yelp), opentable_url, doordash_url, ubereats_url, grubhub_url (aliases without _url),
+    manager_email (aliases: manager, email)."""
     aliases = {"google": "google_query", "google_maps": "google_query", "address": "google_query",
-               "yelp": "yelp_url", "manager": "manager_email", "email": "manager_email"}
+               "yelp": "yelp_url", "opentable": "opentable_url", "doordash": "doordash_url",
+               "ubereats": "ubereats_url", "grubhub": "grubhub_url",
+               "manager": "manager_email", "email": "manager_email"}
     reader = csv.DictReader(io.StringIO(text.strip()))
     headers = {aliases.get(h.strip().lower(), h.strip().lower()) for h in (reader.fieldnames or [])}
     if not {"name", "google_query"} <= headers:
         raise ValueError("The first row must have headers including 'name' and 'google_query' "
-                         "(optional: brand, region, yelp_url, manager_email).")
+                         "(optional: brand, region, yelp_url, opentable_url, doordash_url, ubereats_url, grubhub_url, manager_email).")
     rows, errors = [], []
     for i, raw in enumerate(reader, start=2):
         row = {}
@@ -284,7 +371,7 @@ def import_locations(req: ImportRequest, member: dict = Depends(get_member)):
             skipped.append({"row": line, "reason": f"over the {MAX_LOCATIONS}-location limit"})
             continue
         try:
-            data = _validate_location({k: row.get(k) for k in ("name", "google_query", "brand", "region", "yelp_url", "manager_email")})
+            data = _validate_location({k: row.get(k) for k in ("name", "google_query", "brand", "region", "yelp_url", "opentable_url", "doordash_url", "ubereats_url", "grubhub_url", "manager_email")})
         except HTTPException as exc:
             skipped.append({"row": line, "reason": exc.detail})
             continue
@@ -300,13 +387,13 @@ def import_locations(req: ImportRequest, member: dict = Depends(get_member)):
 def update_location(location_id: str, req: LocationUpdate, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
     loc = _get_location(member, location_id)
-    data = _validate_location(_fields(req))
+    data = _validate_location(_fields(req), member)
     if "name" in data and not data["name"] or "google_query" in data and not data["google_query"]:
         raise HTTPException(status_code=400, detail="Name and Google search can't be empty.")
     row = get_store().update_location(location_id, **data)
     _audit(member, "location_update", loc["name"], {"fields": sorted(data)})
     snap = get_store().latest_snapshot(location_id)
-    return _location_row(row, snap, _open_alert_counts(member).get(location_id, 0))
+    return _location_row(row, snap, _open_alert_counts(member).get(location_id, 0), _show_provider_names(member))
 
 
 @router.delete("/locations/{location_id}")
@@ -331,6 +418,16 @@ def run_location(location_id: str, member: dict = Depends(get_member)):
             "fresh_reviews": res["fresh_reviews"], "snapshot": res["snapshot"]}
 
 
+@router.get("/locations/{location_id}/providers")
+def location_providers(location_id: str, member: dict = Depends(get_member)):
+    """Provider-level numbers for one location, filtered by role: owners and admins see every provider with names, a
+    manager sees their own location's providers, a viewer sees practice-level totals only."""
+    loc = _get_location(member, location_id)               # a manager can only reach their own location
+    view = provider_view(member["org"], get_store().latest_snapshot(location_id), member)
+    view["links"] = (loc.get("provider_links") or []) if view["level"] == "full" else []
+    return view
+
+
 @router.get("/locations/{location_id}/history")
 def location_history(location_id: str, member: dict = Depends(get_member)):
     _get_location(member, location_id)
@@ -344,15 +441,21 @@ def location_analysis(location_id: str, months: int = 6, view: str = "combined",
     """The full single-business dashboard payload for one location (every panel)."""
     loc = _get_location(member, location_id)
     _enforce_budget(member)
+    org_scope = wallet.scope_for_org(member["org_id"])
+    wallet.precheck(get_store(), org_scope, 0.0, who="org")        # companies pay from their credit balance
     months = max(1, min(60, months))
-    by_source, cached, notes, fresh = pipeline.pull_reviews(
-        loc["google_query"], loc.get("yelp_url"), months, want_yelp=bool(loc.get("yelp_url"))
+    by_source, cached, notes, fresh, unrated = pipeline.pull_reviews_ext(
+        loc["google_query"], loc.get("yelp_url"), months, want_yelp=bool(loc.get("yelp_url")), others=_other_sources(loc)
     )
     if sum(fresh.values()):
         get_store().add_usage(member["org_id"], location_id, sum(fresh.values()), "analysis")
     web = pipeline.pull_mentions(default_terms(loc["google_query"]), months) if mentions else None
-    return pipeline.assemble(by_source, cached, notes, view=view, months=months, location=loc["name"],
-                             paid=True, alert_email=None, competitors=None, mentions=web)
+    result = pipeline.assemble(by_source, cached, notes, view=view, months=months, location=loc["name"],
+                               paid=True, alert_email=None, competitors=None, mentions=web, unrated=unrated,
+                               industry=member["org"].get("industry"))
+    cost = credit_rates.cost_breakdown(fresh, searches=(web or {}).get("searches", 0))
+    result["billing"] = wallet.settle(get_store(), org_scope, 0.0, cost, f"Analysis of {loc['name']}")
+    return result
 
 
 # -------------------------------------------------- roll-up and benchmarks
@@ -368,6 +471,18 @@ def overview(member: dict = Depends(get_member)):
     result = metrics.build_overview(locs, {k: v for k, v in snaps.items() if k in visible}, counts)
     result["usage"] = monitor.usage_status(store, member["org"])
     return result
+
+
+@router.get("/industry")
+def company_industry(member: dict = Depends(get_member)):
+    """The company's industry data: headline numbers, theme-by-location grid, rankings and trends. Only the locations
+    this person may see are used, so a manager's numbers describe only their own locations."""
+    store = get_store()
+    locs = _visible_locations(member)
+    visible = {l["id"] for l in locs}
+    snaps = {k: v for k, v in store.latest_snapshots_for_org(member["org_id"]).items() if k in visible}
+    history = {l["id"]: list(reversed(store.snapshots(l["id"], 30))) for l in locs}
+    return industry_rollup.build_company_industry(member["org"], locs, snaps, history)
 
 
 @router.get("/benchmarks")
@@ -391,11 +506,14 @@ def benchmarks(group_by: str = "all", member: dict = Depends(get_member)):
 def list_alerts(status: str = None, location_id: str = None, member: dict = Depends(get_member)):
     store = get_store()
     names = {l["id"]: l for l in store.list_locations(member["org_id"])}
+    pack = industries.get_pack(member["org"].get("industry"))
     out = []
     for a in store.list_alerts(member["org_id"], status=status, location_id=location_id):
         loc = names.get(a["location_id"])
         if loc and can_see_location(member, loc):
-            out.append({**a, "location_name": loc["name"], "region": loc.get("region")})
+            # Which of the industry's themes this review touches, so tasks can be filtered by theme.
+            out.append({**a, "location_name": loc["name"], "region": loc.get("region"),
+                        "themes": themes_in_text(a.get("text") or "", pack)})
     return out
 
 

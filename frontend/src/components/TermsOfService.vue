@@ -89,8 +89,8 @@ function jump(id) {
 }
 
 .tos-topic {
-  background: #faf8ff;
-  border: 1px solid #e4defa;
+  background: var(--brand-soft, #faf8ff);
+  border: 1px solid var(--brand-border, #e4defa);
   border-radius: 8px;
   padding: 10px 14px;
 }

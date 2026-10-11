@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { CATEGORY_LABELS, toneClass, toneLabel } from '../utils/mentions'
+import { CATEGORY_LABELS, SEARCH_PRICE_USD, formatCost, toneClass, toneLabel } from '../utils/mentions'
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -10,19 +10,20 @@ const PAGE = 8
 const shownCount = ref(PAGE)
 const items = computed(() => props.result?.items ?? [])
 const shown = computed(() => items.value.slice(0, shownCount.value))
+const cost = computed(() => formatCost((props.result?.searches ?? 0) * SEARCH_PRICE_USD))
 </script>
 
 <template>
   <section class="chart-section">
     <div class="title-row">
       <h3>🌐 Internet mentions</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <span class="data-basis">Web search results (news, blogs, forums, social), not review sites</span>
     </div>
     <p class="chart-desc">
       What the open web says about your business beyond Google and Yelp reviews. Each mention's tone is
       scored from its search-result headline and snippet, and complaints rising in your reviews are
-      checked against what shows up here. <em>Snippets are short and Google's results aren't
+      checked against what shows up here. Mentions also appear in your Reviews list and in the tone
+      readings, but they have no stars, so they are <strong>never counted in ratings or review totals</strong>. <em>Snippets are short and Google's results aren't
       exhaustive (posts on Facebook or Instagram rarely appear), so read the pages before acting.</em>
     </p>
 
@@ -46,6 +47,10 @@ const shown = computed(() => items.value.slice(0, shownCount.value))
             <span class="label">Mentions found</span>
             <span class="value">{{ result.summary.count }}</span>
             <span class="sub">searching “{{ result.terms }}”</span>
+            <span class="sub">
+              <template v-if="result.searches">{{ result.searches }} searches used (about {{ cost }})</template>
+              <template v-else>reused a recent pull: no searches billed</template>
+            </span>
           </div>
           <div class="oc-card oc-stat">
             <span class="label">Overall tone</span>

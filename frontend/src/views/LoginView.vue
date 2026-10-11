@@ -1,7 +1,9 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchBranding } from '../api'
 import { supabase } from '../supabase'
+import { applyBranding, brandTitle, emailDomain, forgetBrand, recallBrand, rememberBrand, safeLogo } from '../utils/theme'
 
 const router = useRouter()
 const route = useRoute()
@@ -15,6 +17,45 @@ const ssoEmail = ref('')
 const ssoError = ref('')
 const ssoLoading = ref(false)
 const showSso = ref(false)
+
+// A company with white-label branding gets its own look here, found from the work email's domain BEFORE sign-in.
+const branding = ref(null)
+const brandLogo = computed(() => safeLogo(branding.value))
+const brandName = computed(() => (branding.value ? brandTitle(branding.value) : ''))
+
+onMounted(() => {
+  const saved = recallBrand() // a return visit starts branded, without a flash of the default look
+  if (saved) {
+    branding.value = saved
+    applyBranding(saved)
+    document.title = brandTitle(saved)
+  }
+})
+
+let timer = null
+let lastDomain = ''
+
+function lookup(value) {
+  const domain = emailDomain(value)
+  if (!domain || domain === lastDomain) return
+  lastDomain = domain
+  clearTimeout(timer)
+  timer = setTimeout(async () => {
+    try {
+      const { branding: found } = await fetchBranding(value)
+      branding.value = found
+      applyBranding(found)
+      document.title = brandTitle(found)
+      if (found) rememberBrand(found)
+      else forgetBrand()
+    } catch {
+      /* the login page works the same without branding */
+    }
+  }, 350)
+}
+
+watch(email, lookup)
+watch(ssoEmail, lookup)
 
 async function handleSubmit() {
   loading.value = true
@@ -33,13 +74,7 @@ async function handleSubmit() {
   router.push(route.query.redirect || '/dashboard')
 }
 
-async function handleSso() {
-  const domain = ssoEmail.value.split('@')[1]
-  if (!domain) {
-    ssoError.value = 'Enter your full work email address.'
-    return
-  }
-
+async function startSso(domain) {
   ssoLoading.value = true
   ssoError.value = ''
 
@@ -58,12 +93,40 @@ async function handleSso() {
     ssoError.value = `No SSO connection is set up for ${domain}. Contact your admin or use email/password instead.`
   }
 }
+
+async function handleSso() {
+  const domain = ssoEmail.value.split('@')[1]
+  if (!domain) {
+    ssoError.value = 'Enter your full work email address.'
+    return
+  }
+  await startSso(domain)
+}
+
+// The company's own SSO button, shown once its branding has been recognised.
+function handleBrandSso() {
+  return startSso(branding.value.sso_domain)
+}
 </script>
 
 <template>
   <div class="auth-screen">
     <div class="auth-card">
+      <div v-if="branding" class="brand-header" style="text-align: center; margin-bottom: 14px">
+        <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="brand-logo" />
+        <h3 v-else style="margin: 0">{{ brandName }}</h3>
+      </div>
+
       <h2>Log in</h2>
+
+      <template v-if="branding && branding.sso">
+        <button class="run-btn" type="button" :disabled="ssoLoading" @click="handleBrandSso">
+          {{ ssoLoading ? 'Redirecting…' : `Continue with ${brandName} SSO` }}
+        </button>
+        <p v-if="ssoError" class="status error">{{ ssoError }}</p>
+        <div class="sso-divider">or use email and password</div>
+      </template>
+
       <form @submit.prevent="handleSubmit">
         <label class="field">
           <span>Email</span>
@@ -73,9 +136,6 @@ async function handleSso() {
           <span>Password</span>
           <input v-model="password" type="password" autocomplete="current-password" required />
         </label>
-        <p class="switch-link" style="text-align: left; margin: -6px 0 14px">
-          <router-link to="/forgot-password">Forgot password?</router-link>
-        </p>
 
         <p v-if="error" class="status error">{{ error }}</p>
 
@@ -84,22 +144,24 @@ async function handleSso() {
         </button>
       </form>
 
-      <div class="sso-divider">or</div>
+      <template v-if="!(branding && branding.sso)">
+        <div class="sso-divider">or</div>
 
-      <template v-if="!showSso">
-        <button class="run-btn sso-toggle-btn" @click="showSso = true">
-          🏢 Continue with company SSO
-        </button>
-      </template>
-      <template v-else>
-        <label class="field">
-          <span>Work email</span>
-          <input v-model="ssoEmail" type="email" placeholder="you@yourcompany.com" />
-        </label>
-        <p v-if="ssoError" class="status error">{{ ssoError }}</p>
-        <button class="run-btn sso-toggle-btn" @click="handleSso" :disabled="ssoLoading">
-          {{ ssoLoading ? 'Redirecting…' : 'Continue' }}
-        </button>
+        <template v-if="!showSso">
+          <button class="run-btn sso-toggle-btn" @click="showSso = true">
+            🏢 Continue with company SSO
+          </button>
+        </template>
+        <template v-else>
+          <label class="field">
+            <span>Work email</span>
+            <input v-model="ssoEmail" type="email" placeholder="you@yourcompany.com" />
+          </label>
+          <p v-if="ssoError" class="status error">{{ ssoError }}</p>
+          <button class="run-btn sso-toggle-btn" @click="handleSso" :disabled="ssoLoading">
+            {{ ssoLoading ? 'Redirecting…' : 'Continue' }}
+          </button>
+        </template>
       </template>
 
       <p class="switch-link">

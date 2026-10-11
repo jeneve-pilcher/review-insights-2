@@ -48,7 +48,6 @@ const sortedDrag = computed(() => {
   <section class="chart-section">
     <div class="title-row">
       <h3>🔥 Wait-Time Revenue Leak Heatmap</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">

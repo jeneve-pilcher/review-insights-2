@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { orgApi } from '../api'
 import { percentileClass, signed } from '../utils/orgFormat'
+import OrgIndustryBenchmarks from './OrgIndustryBenchmarks.vue'
 
 const props = defineProps({
   info: { type: Object, required: true },
@@ -44,6 +45,8 @@ function vs(row, key) {
 
 <template>
   <div>
+    <OrgIndustryBenchmarks @open="emit('open', $event)" />
+
     <div class="analysis-form" style="margin-bottom: 12px">
       <label class="field">
         <span>Compare each location against</span>

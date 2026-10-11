@@ -15,7 +15,6 @@ defineProps({
   <section class="chart-section">
     <div class="title-row">
       <h3>{{ title }}</h3>
-      <span class="nlp-badge">🧠 NLP</span>
     </div>
     <NlpCallout
       title="Free preview, from your own reviews"

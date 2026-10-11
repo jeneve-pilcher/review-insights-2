@@ -1,4 +1,6 @@
 <script setup>
+import { toneClass, toneLabel } from '../utils/mentions'
+
 const props = defineProps({
   result: { type: Object, default: null },
 })
@@ -48,7 +50,16 @@ function pace(platform) {
         <div v-for="p in result.platforms" :key="p.source" class="platform-card">
           <h4>{{ p.label }}</h4>
 
-          <template v-if="p.reviews">
+          <template v-if="p.kind === 'mentions' || p.kind === 'unrated'">
+            <div class="platform-row"><span>{{ p.kind === 'unrated' ? 'Written reviews' : 'Mentions found' }}</span><strong>{{ p.reviews }}</strong><em>no star ratings</em></div>
+            <div v-if="p.store_rating" class="platform-row"><span>Store's own rating</span><strong>{{ p.store_rating }}★</strong><em>{{ p.store_ratings ?? '–' }} ratings on {{ p.label }}</em></div>
+            <div class="platform-row"><span>Overall tone</span><strong :class="toneClass(p.avg_sentiment)">{{ toneLabel(p.avg_sentiment) }}</strong></div>
+            <div class="platform-row"><span>Negative / positive</span><strong>{{ p.negative_count }} / {{ p.positive_count }}</strong></div>
+            <div class="platform-row"><span>Most recent dated</span><strong>{{ p.last_review_date ?? '–' }}</strong></div>
+            <p class="oc-note">Counted separately from star reviews; never part of your ratings.</p>
+          </template>
+
+          <template v-else-if="p.reviews">
             <div class="platform-row"><span>Reviews</span><strong>{{ p.reviews }}</strong><em>{{ p.text_reviews }} written</em></div>
             <div class="platform-row"><span>Average rating</span><strong>{{ p.avg_rating }}★</strong></div>
             <div class="platform-row"><span>1–2★ share</span><strong>{{ p.low_star_pct }}%</strong></div>

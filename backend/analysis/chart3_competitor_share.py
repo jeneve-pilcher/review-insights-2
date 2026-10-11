@@ -1,5 +1,5 @@
 from analysis.categorize import THEME_LABELS, classify_themes
-from analysis.outscraper_client import dominant_tiers, fetch_reviews
+from analysis.outscraper_client import dominant_tiers, fetch_reviews_with_meta
 from analysis.review_utils import has_text
 from analysis.topics import top_keywords
 
@@ -7,10 +7,12 @@ from analysis.topics import top_keywords
 def _business_breakdown(name: str, search_query: str, months: int, reviews=None) -> dict:
     # `reviews` is passed in for the account's own business (already pulled for
     # every other panel); competitors are fetched here, one pull each.
+    fresh = 0                       # reviews actually bought for this business (0 if cached or passed in)
     if reviews is None:
-        reviews = fetch_reviews(search_query, months)
+        reviews, cached = fetch_reviews_with_meta(search_query, months)
+        fresh = 0 if cached else len(reviews)
     if not reviews:
-        return {"name": name, "dominant_tiers": [], "tiers": []}
+        return {"name": name, "dominant_tiers": [], "tiers": [], "fresh_reviews": fresh}
 
     # Tiers come from ALL reviews (star-only included). Themes can only be read
     # from written reviews, and only the top-3 tiers are ever shown, so only
@@ -47,7 +49,7 @@ def _business_breakdown(name: str, search_query: str, months: int, reviews=None)
             "top_keywords": top_keywords([r["text"] for r in tier_text]),
         })
 
-    return {"name": name, "dominant_tiers": tiers, "tiers": tier_rows}
+    return {"name": name, "dominant_tiers": tiers, "tiers": tier_rows, "fresh_reviews": fresh}
 
 
 def build_competitor_share(businesses: list[dict], months: int = 6, own_reviews=None) -> dict:
@@ -60,4 +62,4 @@ def build_competitor_share(businesses: list[dict], months: int = 6, own_reviews=
     for i, b in enumerate(businesses):
         reviews = [dict(r) for r in own_reviews] if (i == 0 and own_reviews is not None) else None
         results.append(_business_breakdown(b["name"], b["search_query"], months, reviews))
-    return {"businesses": results}
+    return {"businesses": results, "fresh_reviews": sum(r.get("fresh_reviews", 0) for r in results)}

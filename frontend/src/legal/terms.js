@@ -20,6 +20,7 @@ export const COMPANY = {
   GOVERNING_LAW: '', // e.g. 'the laws of the State of Indiana, USA, and the courts located in Hamilton County'
   REFUND_POLICY: '', // e.g. 'Subscriptions can be cancelled at any time and stay active until the end of the paid period. Fees are not refunded except where required by law.'
   PRIVACY_POLICY: '', // e.g. 'our Privacy Policy at https://example.com/privacy'
+  CREDIT_POLICY: '', // e.g. 'Credit does not expire while your account is open and is not refundable, except where required by law.'
 }
 // -------------------------------------------------------------------------------------------
 
@@ -29,6 +30,7 @@ export const PLACEHOLDER_LABELS = {
   GOVERNING_LAW: 'governing law and courts',
   REFUND_POLICY: 'refund and cancellation policy',
   PRIVACY_POLICY: 'privacy policy',
+  CREDIT_POLICY: 'usage credit expiry and refund policy',
 }
 
 // Splits text into plain pieces and {{TOKEN}} pieces, filling in the ones you've set and
@@ -74,7 +76,7 @@ export const SECTIONS = [
     blocks: [
       {
         type: 'p',
-        text: 'Review Insights collects publicly available reviews of a business (currently from Google and, if you add it, Yelp) and, if you turn it on, web search results that mention the business. It then analyzes them to show rating and volume trends, language and topic findings, signals worth a look, rankings between locations, and tasks for negative reviews. It can also draft replies for you to edit and post yourself.',
+        text: 'Review Insights collects publicly available reviews of a business (currently from Google and, if you add them, Yelp, OpenTable, DoorDash, Uber Eats and Grubhub) and, if you turn it on, web search results that mention the business. It then analyzes them to show rating and volume trends, language and topic findings, signals worth a look, rankings between locations, and tasks for negative reviews. It can also draft replies for you to edit and post yourself.',
       },
       {
         type: 'p',
@@ -111,12 +113,12 @@ export const SECTIONS = [
           {
             id: 'data',
             title: 'Review data comes from third parties and can be incomplete or wrong',
-            text: 'We obtain reviews through an outside data provider, not directly from the platforms. We limit how many reviews are pulled per business, and when a time window is cut short by that limit we say so, but older reviews may then be missing. Platforms can hide, filter, delay or remove reviews (for example, Yelp does not show every review it receives), change their format, or block access, so the numbers here can differ from what a platform shows. Reviews with a star rating but no comment are counted in volumes and ratings but contain no text to analyze.',
+            text: 'We obtain reviews through outside data providers and scraping services, not directly from the platforms, and some of those services are small or community-run, so they can break or change without notice. We limit how many reviews are pulled per business, and when a time window is cut short by that limit we say so, but older reviews may then be missing. Platforms can hide, filter, delay or remove reviews (for example, Yelp does not show every review it receives), change their format, or block access, so the numbers here can differ from what a platform shows. Uber Eats reviews have no star ratings, so they are read for tone but never counted in your ratings or review totals. Reviews with a star rating but no comment are counted in volumes and ratings but contain no text to analyze.',
           },
           {
             id: 'estimates',
             title: 'Scores, signals and dollar figures are indicators, not facts or predictions',
-            text: 'Revenue and "revenue drag" figures are rough estimates built from review patterns and numbers you type in (such as average order value); we cannot see your sales. "Rating gain" figures are simple arithmetic on your own reviews, not forecasts. Tone and topic scoring is automated and can misread sarcasm, slang or very short comments. Trend and signal checks use statistical thresholds, so some flagged patterns will be chance and some real patterns will be missed. We do not promise that acting on any signal will improve your ratings, search ranking or revenue.',
+            text: 'Revenue and "revenue drag" figures are rough estimates built from review patterns and numbers you type in (such as average order value); we cannot see your sales. "Rating gain" figures are simple arithmetic on your own reviews, not forecasts. Tone and topic scoring is automated and can misread sarcasm, slang or very short comments. Trend and signal checks use statistical thresholds, so some flagged patterns will be chance and some real patterns will be missed. Industry themes and graphs are found by matching words and phrases in written reviews, so they can miss unusual wording or catch an unrelated use of a word, and a flagged trend can still be chance. We do not promise that acting on any signal will improve your ratings, search ranking or revenue.',
           },
           {
             id: 'time',
@@ -126,7 +128,7 @@ export const SECTIONS = [
           {
             id: 'mentions',
             title: 'Internet mentions are a sample',
-            text: 'Mentions come from web search results (headlines and short snippets). They are not exhaustive; posts on some social networks rarely appear; some results may be unrelated to your business; and a mention\'s tone is judged from a short snippet. Open the page and read it before acting on it.',
+            text: 'Mentions come from web search results (headlines and short snippets). They are not exhaustive; posts on some social networks rarely appear; some results may be unrelated to your business; and a mention\'s tone is judged from a short snippet. In your analysis they are treated as unrated written items: they appear alongside reviews and are included in the tone and language findings, but they are never counted as star reviews or included in ratings, review totals or time-of-day views. Reviews from Uber Eats are treated the same way. Open the page and read it before acting on it.',
           },
           {
             id: 'replies',
@@ -136,7 +138,7 @@ export const SECTIONS = [
           {
             id: 'alerts',
             title: 'Alerts, tasks and automatic checks are best-effort',
-            text: 'Automatic checks run on a schedule (by default about once a day) and can be delayed or skipped, for example when a monthly review budget has been used, a data source is down or errors, or our servers restart. A review may be reported late or missed, and alert emails can fail or land in spam. Do not rely on the service as your only way to learn about urgent matters such as food-safety, health, safety or legal complaints.',
+            text: 'Automatic checks run on a schedule (by default about once a day) and can be delayed or skipped, for example when a monthly spending limit has been reached or its credit balance has been used, a data source is down or errors, or our servers restart. A review may be reported late or missed, and alert emails can fail or land in spam. Do not rely on the service as your only way to learn about urgent matters such as food-safety, health, safety or legal complaints.',
           },
           {
             id: 'privacy',
@@ -146,12 +148,12 @@ export const SECTIONS = [
           {
             id: 'advice',
             title: 'Not professional advice',
-            text: 'Nothing in the service is legal, financial, tax, employment, medical or other professional advice. Decisions you make using it are yours.',
+            text: 'Nothing in the service is legal, financial, tax, employment, medical or other professional advice. Decisions you make using it are yours. For healthcare businesses the service reads public reviews only: never enter or upload patient information, and note that replies are turned off for healthcare accounts because answering a patient\'s review can disclose protected health information.',
           },
           {
             id: 'providers',
             title: 'Some features use outside services',
-            text: 'To run the service we rely on providers for hosting and the database, payments, email, review and web-search data collection, and (only if enabled) AI drafting. When AI drafting is on, the text of the review you are replying to, with emails, phone numbers and order numbers removed, is sent to the AI provider to produce a draft. These providers can have outages or change their terms, which can affect the service.',
+            text: 'To run the service we rely on providers for hosting and the database, payments, email, review and web-search data collection, and (only if enabled) AI drafting. When AI drafting is on, the text of the review you are replying to, with emails, phone numbers and order numbers removed, is sent to the AI provider to produce a draft. These providers can have outages or change their terms, which can affect the service. Where provider-level data about individual doctors is enabled, it comes from the doctors\' public pages and is shown only to the people your company has given access.',
           },
         ],
       },
@@ -182,6 +184,7 @@ export const SECTIONS = [
           'use the service to write, buy, sell, trade or manipulate fake or incentivized reviews, or to break any platform\'s rules;',
           'use it to harass, intimidate or try to identify a reviewer;',
           'break the law, or use it for a business you are not authorized to represent;',
+          'enter, upload or paste patient information or other protected health information into the service;',
           'try to disrupt, probe or overload the service, share your login, or resell the service or its data without our written permission.',
         ],
       },
@@ -207,7 +210,8 @@ export const SECTIONS = [
         items: [
           'Some features are free and some need a paid plan. Paid plans renew automatically through our payment provider until you cancel from "Manage subscription".',
           'Refunds and cancellation: {{REFUND_POLICY}}',
-          'To keep costs predictable, the service applies limits, such as the number of reviews pulled per business, per-company monthly review budgets (automatic checks pause when a budget is used), daily limits on reply drafts, and a maximum number of locations. We may adjust these limits.',
+          'Usage credit: paid plans include a monthly usage allowance, which is spent first. Heavier use, and everything a company account runs, is paid from prepaid credit that you buy in packs. The price of a pack and the credit it gives are shown before you buy, and each run deducts the usage it actually needs (data pulls, web searches and AI drafts), shown before and after the run. Pulls served from a recent copy are free. A single run can take a balance slightly below zero, and further runs are blocked until credit is added. You can also set a monthly spending limit (for your own account, or for a company if you are its owner): once the limit is reached, usage stops until the next month or until you raise it, and the run that crosses the limit finishes, so spending can go slightly over it. {{CREDIT_POLICY}}',
+          'To keep costs predictable, the service applies limits, such as the number of reviews pulled per business, optional per-company monthly spending limits and credit balances (automatic checks pause when either is used up), daily limits on reply drafts, and a maximum number of locations. We may adjust these limits.',
         ],
       },
     ],

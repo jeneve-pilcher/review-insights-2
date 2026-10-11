@@ -17,7 +17,6 @@ const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + wri
   <section class="chart-section">
     <div class="title-row">
       <h3>💡 Revenue Signals</h3>
-      <span class="nlp-badge">🧠 NLP + star ratings</span>
       <span v-if="isPreview" class="trend-preview-tag">Free preview</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
@@ -73,7 +72,7 @@ const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + wri
 }
 
 .signal-warning { border-left-color: #e67e22; background: #fffaf3; }
-.signal-opportunity { border-left-color: #7c5ce0; background: #faf8ff; }
+.signal-opportunity { border-left-color: var(--accent, #7c5ce0); background: var(--brand-soft, #faf8ff); }
 .signal-positive { border-left-color: #2ecc71; background: #f5fcf8; }
 
 .signal-head {

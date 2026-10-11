@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +22,11 @@ class LocationIn(BaseModel):
     brand: Optional[str] = None
     region: Optional[str] = None
     yelp_url: Optional[str] = None
+    opentable_url: Optional[str] = None
+    doordash_url: Optional[str] = None
+    ubereats_url: Optional[str] = None
+    grubhub_url: Optional[str] = None
+    provider_links: Optional[List[str]] = None      # Zocdoc doctor pages; only when provider-level data is enabled
     manager_email: Optional[str] = None
 
 
@@ -31,6 +36,11 @@ class LocationUpdate(BaseModel):
     brand: Optional[str] = None
     region: Optional[str] = None
     yelp_url: Optional[str] = None
+    opentable_url: Optional[str] = None
+    doordash_url: Optional[str] = None
+    ubereats_url: Optional[str] = None
+    grubhub_url: Optional[str] = None
+    provider_links: Optional[List[str]] = None      # Zocdoc doctor pages; only when provider-level data is enabled
     manager_email: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -46,4 +56,9 @@ class AlertUpdate(BaseModel):
 
 
 class BudgetUpdate(BaseModel):
-    monthly_budget_reviews: int = Field(..., ge=0, le=10_000_000)
+    # Dollars of credit the company may spend per month. Leave empty (null) for no limit.
+    monthly_budget_usd: Optional[float] = Field(None, gt=0, le=1_000_000)
+
+
+class IndustryUpdate(BaseModel):
+    industry: str = Field(..., min_length=1, max_length=40)

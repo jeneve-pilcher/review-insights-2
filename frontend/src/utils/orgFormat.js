@@ -18,8 +18,9 @@ const ACTION_LABELS = {
   locations_import: 'Imported locations',
   run_manual: 'Refreshed a location',
   alert_update: 'Updated a task',
-  budget_change: 'Changed the monthly budget',
+  budget_change: 'Changed the monthly spending limit',
   reply_sent: 'Marked a review reply as sent',
+  credit_purchase: 'Bought company credit',
 }
 
 export function actionLabel(action) {
@@ -54,10 +55,14 @@ export function percentileClass(p) {
   return p >= 34 ? 'oc-ok' : 'oc-bad'
 }
 
+// How much of the monthly spending limit is used (0 when there is no limit).
 export function usagePct(usage) {
-  if (!usage) return 0
-  if (!usage.budget) return usage.used ? 100 : 0
-  return Math.min(100, Math.round((100 * usage.used) / usage.budget))
+  if (!usage || !usage.budget_usd) return 0
+  return Math.min(100, Math.round((100 * usage.spent_usd) / usage.budget_usd))
+}
+
+function limitLabel(value) {
+  return value == null ? 'no limit' : `$${Number(value).toFixed(2)}`
 }
 
 export function describeAudit(entry) {
@@ -66,13 +71,15 @@ export function describeAudit(entry) {
     case 'locations_import':
       return `${d.added ?? 0} added, ${d.skipped ?? 0} skipped`
     case 'budget_change':
-      return `${(d.from ?? 0).toLocaleString()} → ${(d.to ?? 0).toLocaleString()} reviews`
+      return `${limitLabel(d.from)} → ${limitLabel(d.to)}`
     case 'member_add':
       return d.role ? `as ${d.role}` : ''
     case 'member_role_change':
       return `${d.from} → ${d.to}`
     case 'member_remove':
       return d.role ? `was ${d.role}` : ''
+    case 'credit_purchase':
+      return `${'$' + Number(d.price_usd ?? 0).toFixed(2)} bought ${'$' + Number(d.credit_usd ?? 0).toFixed(2)} of credit`
     case 'reply_sent':
       return `${d.source === 'yelp' ? 'Yelp' : 'Google'} ${d.rating ?? ''}★ review`.trim()
     case 'run_manual':

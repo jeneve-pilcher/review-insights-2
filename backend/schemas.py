@@ -12,6 +12,24 @@ class AcceptTermsRequest(BaseModel):
     version: str = Field(..., min_length=1, max_length=40)
 
 
+class SetPlatformUrlRequest(BaseModel):
+    platform: Literal["opentable", "doordash", "ubereats", "grubhub"]
+    url: str = Field(..., min_length=1)
+
+
+class SetIndustryRequest(BaseModel):
+    industry: str = Field(..., min_length=1, max_length=40)
+
+
+class SetLinksRequest(BaseModel):
+    """The review pages an account connects, all in one save. Send only the ones being added."""
+    yelp_url: Optional[str] = None
+    opentable_url: Optional[str] = None
+    doordash_url: Optional[str] = None
+    ubereats_url: Optional[str] = None
+    grubhub_url: Optional[str] = None
+
+
 class SetYelpUrlRequest(BaseModel):
     yelp_url: str = Field(..., min_length=1)
 
@@ -30,12 +48,14 @@ class UnifiedAnalysisRequest(BaseModel):
     # account's own business is always pulled once and shared by every panel.
     competitors: List[BusinessInput] = Field(default_factory=list, max_length=5)
     # Review platforms to pull (Pro/Enterprise for anything beyond Google). Each is one pull.
-    sources: List[Literal["google", "yelp"]] = Field(default_factory=lambda: ["google"])
+    sources: List[Literal["google", "yelp", "opentable", "doordash", "ubereats", "grubhub"]] = Field(default_factory=lambda: ["google"])
     # Which pulled platform(s) the panels analyze. Switching is free inside the cache window.
-    view: Literal["combined", "google", "yelp"] = "combined"
+    view: Literal["combined", "google", "yelp", "opentable", "doordash", "grubhub"] = "combined"
     # Pro/Enterprise: also search the web for mentions (news, blogs, forums, social). Extra cost.
     mentions: bool = False
     mention_terms: Optional[str] = Field(None, max_length=200)
+    # How deep to search: pages per search (about 10 results each). More pages = more mentions = more cost.
+    mention_pages: int = Field(2, ge=1, le=5)
 
 
 class EnterpriseContactRequest(BaseModel):

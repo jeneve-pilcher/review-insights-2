@@ -1,0 +1,37 @@
+/*
+  Brand theme. The defaults below are exactly today's colors, so nothing changes visually unless a company has
+  white-label branding (then utils/theme.js overrides these variables for that company's people only).
+  The rules at the bottom point the app's existing buttons and links at the variables.
+*/
+:root {
+  --brand: #ff4b4b;
+  --brand-hover: #e13c3c;
+  --brand-soft: #faf8ff;
+  --brand-border: #e4defa;
+  --accent: #7c5ce0;
+}
+
+body .run-btn,
+body .cta-btn {
+  background: var(--brand);
+}
+
+body .run-btn:hover,
+body .cta-btn:hover {
+  background: var(--brand-hover);
+}
+
+body .switch-link a {
+  color: var(--brand);
+}
+
+body .pricing-card.highlighted {
+  border-color: var(--brand);
+}
+
+.brand-logo {
+  max-height: 40px;
+  max-width: 180px;
+  object-fit: contain;
+  vertical-align: middle;
+}

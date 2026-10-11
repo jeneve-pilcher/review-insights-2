@@ -1,78 +1,79 @@
 <script setup>
-import { useRouter } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import GetStartedPanel from '../components/GetStartedPanel.vue'
+import IndustryShowcase from '../components/IndustryShowcase.vue'
 import PricingCard from '../components/PricingCard.vue'
+import StatsStrip from '../components/StatsStrip.vue'
+import { readQuery } from '../utils/startFlow'
 
+const route = useRoute()
 const router = useRouter()
 
+const selected = ref('') // the industry chosen in the section below the hero
+const plan = ref('free')
+
+function scrollToSection(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// Every "get started" and purchase button scrolls to the panel on this page (no popup). If no industry has been
+// chosen yet, it takes you to the industries first.
+function startFlow(chosenPlan) {
+  if (chosenPlan) plan.value = chosenPlan
+  scrollToSection(selected.value ? 'start' : 'industries')
+}
+
 function chooseFree() {
-  router.push({ path: '/signup', query: { plan: 'free' } })
+  startFlow('free')
 }
 
 function choosePro() {
-  router.push({ path: '/signup', query: { plan: 'pro' } })
+  startFlow('pro')
 }
 
 function chooseEnterprise() {
   router.push('/enterprise')
 }
 
-const stats = [
-  {
-    value: '97%',
-    label: 'of consumers read reviews before choosing a local business',
-    source: 'BrightLocal, 2026',
-  },
-  {
-    value: '81%',
-    label: 'specifically check Google reviews before visiting a business',
-    source: 'DemandSage / Wiser Review, 2026',
-  },
-  {
-    value: '70%',
-    label: 'of potential customers a business can lose after just 4 negative reviews',
-    source: 'LocalIQ, 2026',
-  },
-  {
-    value: '10',
-    label: 'reviews the average consumer reads before trusting a business',
-    source: 'BrightLocal, 2026',
-  },
-]
+// A link like /?industry=dental&plan=pro lands you straight on the get-started panel for that industry.
+onMounted(() => {
+  const q = readQuery(route.query)
+  if (q.plan) plan.value = q.plan
+  if (q.industry) {
+    selected.value = q.industry
+    setTimeout(() => scrollToSection('start'), 50)
+  }
+})
 </script>
 
 <template>
   <div class="landing">
+    <nav class="landing-nav">
+      <span class="landing-brand">📊 Review Insights</span>
+      <div class="landing-nav-links">
+        <a href="#industries">Industries</a>
+        <a href="#pricing">Plans</a>
+        <router-link to="/login">Log in</router-link>
+        <button class="run-btn" @click="startFlow('free')">Get started</button>
+      </div>
+    </nav>
+
     <header class="landing-hero">
-      <div class="hero-badge">📍 Built on real Google review data</div>
-      <h1>Your reviews are already telling you what's wrong.<br />Most businesses just aren't listening fast enough.</h1>
+      <h1>📊 Review Insights</h1>
       <p>
-        Turn Google reviews into early-warning signals: catch sentiment drift, wait-time revenue
-        leaks, and competitor weak spots before they show up in your star rating.
+        Review intelligence for restaurants, healthcare practices and more. Turn your reviews into early-warning
+        signals: catch sentiment drift, wait-time revenue leaks and competitor weak spots, with the themes and graphs
+        that matter in your industry.
       </p>
-      <button class="run-btn hero-cta" @click="chooseFree">Get started free</button>
+      <button class="run-btn" @click="scrollToSection('industries')">Choose your industry</button>
     </header>
 
-    <section class="stats-section">
-      <h2>Why review analysis matters</h2>
-      <p class="stats-intro">
-        Reviews aren't just reputation management anymore - they're a live data feed on how your
-        business is actually performing, read by nearly every customer before they walk in.
-      </p>
-      <div class="stats-grid">
-        <div v-for="stat in stats" :key="stat.label" class="stat-card">
-          <div class="stat-value">{{ stat.value }}</div>
-          <p class="stat-label">{{ stat.label }}</p>
-          <span class="stat-source">{{ stat.source }}</span>
-        </div>
-      </div>
-      <p class="stats-footnote">
-        The problem: by the time a trend is obvious in your overall star rating, it's already
-        cost you customers. Review Insights is built to catch the shift while it's still small -
-        a subtle move from your best tier into your second or third tier, a bad Thursday evening
-        pattern, a competitor's weak spot - not after it's already visible to everyone searching
-        your name on Google.
-      </p>
-    </section>
+    <StatsStrip />
+
+    <IndustryShowcase :selected="selected" @select="selected = $event" @start="startFlow()" />
+
+    <GetStartedPanel :industry="selected" :plan="plan" @update:plan="plan = $event" />
 
     <section id="pricing" class="pricing-section">
       <h2>Plans</h2>
@@ -90,11 +91,10 @@ const stats = [
           period="/ month"
           :highlighted="true"
           :features="[
-            'All charts',
+            'All 3 charts',
             'Wait-Time Revenue Heatmap',
-            'Negative Review Alerts',
             'Competitor Semantic Share Matrix',
-            'Up to 5 competitors tracked',
+            'Up to 6 competitors tracked',
           ]"
           cta-label="Start Pro"
           @cta="choosePro"
@@ -102,7 +102,7 @@ const stats = [
         <PricingCard
           title="Enterprise"
           price="Custom"
-          :features="['Everything in Pro', 'SAML/OIDC company login', 'Custom competitor limits', 'Dedicated support']"
+          :features="['Everything in Pro', 'Custom competitor limits', 'Dedicated support', 'Custom integrations']"
           cta-label="Contact sales"
           @cta="chooseEnterprise"
         />
@@ -110,3 +110,48 @@ const stats = [
     </section>
   </div>
 </template>
+
+<style>
+.landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 28px;
+  background: white;
+  border-bottom: 1px solid #e4e6ea;
+}
+
+.landing-brand {
+  font-weight: 700;
+}
+
+.landing-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.landing-nav-links a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.landing-nav-links .run-btn {
+  width: auto;
+  padding: 8px 16px;
+}
+
+.landing {
+  scroll-behavior: smooth;
+}
+
+#industries,
+#start,
+#pricing {
+  scroll-margin-top: 64px;
+}
+</style>

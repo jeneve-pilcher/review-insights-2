@@ -37,6 +37,7 @@ export async function analyzeAll({
   view = 'combined',
   mentions = false,
   mentionTerms = null,
+  mentionPages = 2,
 }) {
   const { data } = await api.post('/api/analyze/all', {
     months,
@@ -47,7 +48,19 @@ export async function analyzeAll({
     view,
     mentions,
     mention_terms: mentionTerms,
+    mention_pages: mentionPages,
   })
+  return data
+}
+
+export async function setPlatformUrl(platform, url) {
+  const { data } = await api.post('/api/me/platform-url', { platform, url })
+  return data
+}
+
+// Saves several review-page links at once (all or nothing). Returns { links: { yelp_url: ..., ... } }.
+export async function saveLinks(links) {
+  const { data } = await api.post('/api/me/links', links)
   return data
 }
 
@@ -80,8 +93,20 @@ export async function submitEnterpriseContact(payload) {
 export const orgApi = {
   async get() { return (await api.get('/api/org')).data },
   async create(name) { return (await api.post('/api/org', { name })).data },
-  async setBudget(monthlyBudgetReviews) {
-    return (await api.patch('/api/org/budget', { monthly_budget_reviews: monthlyBudgetReviews })).data
+  async setIndustry(industry) {
+    return (await api.put('/api/org/industry', { industry })).data
+  },
+  // Individual-doctor numbers for one location (only what this person's role may see).
+  async providers(locationId) {
+    return (await api.get(`/api/org/locations/${locationId}/providers`)).data
+  },
+  // Industry numbers for the company: headline numbers, theme grid, rankings, trend, OpenTable scores by location.
+  async industry() {
+    return (await api.get('/api/org/industry')).data
+  },
+  // Dollars of credit per month, or null for no limit.
+  async setBudget(monthlyBudgetUsd) {
+    return (await api.patch('/api/org/budget', { monthly_budget_usd: monthlyBudgetUsd })).data
   },
 
   async addMember(email, role) { return (await api.post('/api/org/members', { email, role })).data },
@@ -113,6 +138,30 @@ export const repliesApi = {
   },
   async draft(body) { return (await api.post('/api/replies/draft', body)).data },
   async save(body) { return (await api.put('/api/replies', body)).data },
+}
+
+// ---- Usage credit ----
+export const creditsApi = {
+  async get(scope = 'user') { return (await api.get('/api/credits', { params: { scope } })).data },
+  async checkout(packId, scope = 'user') { return (await api.post('/api/credits/checkout', { pack_id: packId, scope })).data },
+  async confirm(sessionId) { return (await api.post('/api/credits/confirm', { session_id: sessionId })).data },
+  // Monthly spending limit in dollars of API usage; null = no limit.
+  async setLimit(monthlyLimitUsd, scope = 'user') { return (await api.put('/api/credits/limit', { scope, monthly_limit_usd: monthlyLimitUsd })).data },
+}
+
+// ---- Branding and industry ----
+// Public (no sign-in needed): a company's branding, found from a work email's domain.
+export async function fetchBranding(email) {
+  const { data } = await api.get('/api/branding', { params: { email } })
+  return data
+}
+
+export async function fetchIndustries() {
+  return (await api.get('/api/industries')).data
+}
+
+export async function setIndustry(industry) {
+  return (await api.put('/api/me/industry', { industry })).data
 }
 
 export async function acceptTerms(version) {

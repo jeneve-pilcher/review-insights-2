@@ -97,11 +97,14 @@ def _velocity(reviews: List[dict]) -> Optional[dict]:
     }
 
 
-def build_sentiment_drift(reviews: List[dict]) -> dict:
+def build_sentiment_drift(reviews: List[dict], web_items: Optional[List[dict]] = None,
+                          unrated: Optional[dict] = None) -> dict:
     """Takes an already-fetched review list (no scraping happens here).
 
     Volume, star tiers and the rolling rating use EVERY review (star-only
-    included). Tone, keywords and phrase detection use written reviews only."""
+    included). Tone, keywords and phrase detection use written reviews only.
+    `web_items` (internet mentions, which have no stars) only add a separate
+    web-tone reading: they never touch volume or ratings."""
     if not reviews:
         return {"dominant_tiers": [], "weekly": [], "drift_alerts": [], "nlp": None, "velocity": None}
 
@@ -168,11 +171,31 @@ def build_sentiment_drift(reviews: List[dict]) -> dict:
             prev_tier1_count = tier1_count
             prev_other_count = other_count
 
+    web_by_week = defaultdict(list)
+    for item in web_items or []:
+        dt = _parse_dt(item.get("date"))
+        if dt is not None:
+            web_by_week[_week_start(dt)].append(item["sentiment"])
+    for row in weekly_rows:
+        scores = web_by_week.get(row["week_start"], [])
+        row["web_count"] = len(scores)
+        row["web_sentiment"] = round(sum(scores) / len(scores), 3) if scores else None
+
+    nlp = _language_summary(text_reviews(reviews), weekly_rows)
+    web_scores = [i["sentiment"] for i in web_items or []]
+    nlp["web_mentions"] = len(web_scores)
+    nlp["web_sentiment"] = round(sum(web_scores) / len(web_scores), 3) if web_scores else None
+    nlp["unrated_sources"] = [
+        {"source": b["source"], "label": b["label"], "count": b["summary"]["count"], "sentiment": b["summary"]["avg_sentiment"]}
+        for b in (unrated or {}).values() if b["summary"]["count"]
+    ]
+    nlp["web_top_words"] = top_keywords([f"{i['title']}. {i['snippet']}" for i in web_items or []], top_n=6) if web_items else []
+
     return {
         "dominant_tiers": tiers,
         "weekly": weekly_rows,
         "drift_alerts": drift_alerts,
-        "nlp": _language_summary(text_reviews(reviews), weekly_rows),
+        "nlp": nlp,
         "velocity": _velocity(reviews),
     }
 

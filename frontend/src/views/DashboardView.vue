@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import CompetitorShareChart from '../components/CompetitorShareChart.vue'
 import LockedPanel from '../components/LockedPanel.vue'
@@ -7,17 +7,21 @@ import MentionsPanel from '../components/MentionsPanel.vue'
 import NegativeReviewAlerts from '../components/NegativeReviewAlerts.vue'
 import OrgConsole from '../components/OrgConsole.vue'
 import PlatformComparison from '../components/PlatformComparison.vue'
+import CreditsPanel from '../components/CreditsPanel.vue'
+import IndustryPanel from '../components/IndustryPanel.vue'
 import ReviewReplies from '../components/ReviewReplies.vue'
 import RevenueSignals from '../components/RevenueSignals.vue'
 import SentimentDriftChart from '../components/SentimentDriftChart.vue'
-import SetBusinessLocation from '../components/SetBusinessLocation.vue'
+import BusinessSetup from '../components/BusinessSetup.vue'
 import TermsGate from '../components/TermsGate.vue'
 import TrendsPanel from '../components/TrendsPanel.vue'
 import UnifiedAnalysisForm from '../components/UnifiedAnalysisForm.vue'
 import WaitTimeHeatmap from '../components/WaitTimeHeatmap.vue'
 import WeeklyThemesChart from '../components/WeeklyThemesChart.vue'
-import YelpSetup from '../components/YelpSetup.vue'
-import { createCheckoutSession, createPortalSession, deleteAccount, fetchMe } from '../api'
+import YourPagesModal from '../components/YourPagesModal.vue'
+import { createCheckoutSession, createPortalSession, deleteAccount, fetchIndustries, fetchMe } from '../api'
+import { applyBranding, brandTitle, forgetBrand, rememberBrand, safeLogo } from '../utils/theme'
+import { billingLine } from '../utils/credits'
 import { REQUIRE_ACCEPTANCE, TERMS_VERSION, needsAcceptance } from '../legal/terms'
 import { supabase } from '../supabase'
 import { heatmapReadItems, negativeReadItems } from '../utils/nlpInsights'
@@ -75,20 +79,44 @@ async function loadMe() {
 }
 
 onMounted(async () => {
+  fetchIndustries().then((d) => { industries.value = d.industries }).catch(() => {})
   await loadMe()
   // Someone invited to a company who isn't on a paid plan lands in the company view.
   if (me.value?.org_role && !isPaid()) mode.value = 'company'
 })
 
-function handleLocationSet(location) {
-  me.value = { ...me.value, business_location: location }
+// First-time setup finished: the Google business, plus any review pages saved with it.
+function handleSetupDone({ location, links }) {
+  me.value = { ...me.value, business_location: location, ...links }
 }
 
-function handleYelpSaved(url) {
-  me.value = { ...me.value, yelp_url: url }
+// "Your pages": merge newly saved links into the account.
+const showPages = ref(false)
+function handleLinksSaved(links) {
+  me.value = { ...me.value, ...links }
 }
 
-const VIEW_LABELS = { combined: 'Combined', google: 'Google', yelp: 'Yelp' }
+// Credit summary (balance, rates, caps) shared with the run form so it can show an estimate.
+// Industry packs and white-label branding.
+const industries = ref([])
+const industryResult = ref(null)
+const industryDefaultAov = computed(() => industries.value.find((i) => i.id === (me.value?.industry || 'casual_dining'))?.default_aov ?? 35)
+const repliesOff = computed(() => industries.value.find((i) => i.id === (me.value?.industry || 'casual_dining'))?.replies_allowed === false)
+const brandLogo = computed(() => safeLogo(me.value?.branding))
+const brandName = computed(() => brandTitle(me.value?.branding))
+watch(me, (m) => {
+  if (!m) return
+  applyBranding(m.branding)
+  document.title = brandTitle(m.branding)
+  if (m.branding) rememberBrand(m.branding)
+  else forgetBrand()
+})
+
+const creditInfo = ref(null)
+const creditsPanel = ref(null)
+const billingText = ref('')
+
+const VIEW_LABELS = { combined: 'Combined', google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', grubhub: 'Grubhub', ubereats: 'Uber Eats', web: 'Web mentions' }
 const viewChoices = computed(() => (meta.value && meta.value.sources.length > 1 ? ['combined', ...meta.value.sources] : []))
 
 const sourceSummary = computed(() => {
@@ -155,22 +183,30 @@ function handleUnifiedResult({ data }) {
   platformsResult.value = data.platforms
   reviewList.value = data.review_list
   mentionsResult.value = data.mentions
+  industryResult.value = data.industry
   view.value = data.meta.view
   waitTimePreview.value = data.wait_time_preview
   negativePreview.value = data.negative_preview
   meta.value = data.meta
+  billingText.value = billingLine(data.billing)
+  creditsPanel.value?.reload()        // the balance just changed
 }
 </script>
 
 <template>
   <div class="dashboard">
     <div class="topbar">
-      <h1>📊 Review Insights</h1>
+      <h1>
+        <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="brand-logo" />
+        <template v-else-if="me && me.branding">{{ brandName }}</template>
+        <template v-else>📊 Review Insights</template>
+      </h1>
       <div class="user-info" v-if="me">
         <span>{{ me.email }}</span>
         <span class="tier-badge" :class="me.tier">{{ me.tier }}</span>
         <button v-if="isPaid()" class="logout-btn" @click="handleManageSubscription">Manage subscription</button>
         <button v-else class="logout-btn" @click="handleUpgrade">Upgrade</button>
+        <button v-if="isPaid() && me.business_location" class="logout-btn" @click="showPages = true">Your pages</button>
         <button class="logout-btn" @click="handleLogout">Log out</button>
         <button class="logout-btn danger-btn" @click="handleDeleteAccount">Delete account</button>
       </div>
@@ -178,6 +214,7 @@ function handleUnifiedResult({ data }) {
 
     <TermsGate v-if="mustAccept" mode="accept" @accepted="onTermsAccepted" @decline="handleLogout" />
     <TermsGate v-if="showTerms" mode="read" @close="showTerms = false" />
+    <YourPagesModal v-if="showPages" :current="me" @saved="handleLinksSaved" @close="showPages = false" />
 
     <p v-if="route.query.checkout === 'success'" class="status" style="color: #2ecc71">
       🎉 Subscription active — thanks for upgrading!
@@ -192,11 +229,10 @@ function handleUnifiedResult({ data }) {
       </div>
 
       <OrgConsole v-if="mode === 'company'" :me="me" />
-      <SetBusinessLocation v-else-if="!me.business_location" @set="handleLocationSet" />
+      <BusinessSetup v-else-if="!me.business_location" :can-add-links="isPaid()" :current="me" @set="handleSetupDone" />
 
       <template v-else>
       <div class="nlp-intro">
-        <span class="nlp-badge">🧠 NLP</span>
         <span>
           <strong>Every panel reads the words in your reviews, not just the stars.</strong>
           Look for the purple <em>Language read</em> boxes: plain-English findings from natural
@@ -204,13 +240,19 @@ function handleUnifiedResult({ data }) {
         </span>
       </div>
 
-      <YelpSetup v-if="isPaid() && !me.yelp_url" @saved="handleYelpSaved" />
+      <CreditsPanel ref="creditsPanel" scope="user" @loaded="creditInfo = $event" />
 
       <UnifiedAnalysisForm
         ref="formRef"
         v-model:months="months"
         :view="view"
         :yelp-url="isPaid() ? me.yelp_url : null"
+        :opentable-url="isPaid() ? me.opentable_url : null"
+        :doordash-url="isPaid() ? me.doordash_url : null"
+        :ubereats-url="isPaid() ? me.ubereats_url : null"
+        :grubhub-url="isPaid() ? me.grubhub_url : null"
+        :credit-info="creditInfo"
+        :default-aov="industryDefaultAov"
         :business-location="me.business_location"
         :show-revenue-inputs="isPaid()"
         :show-competitors="isPaid()"
@@ -223,7 +265,9 @@ function handleUnifiedResult({ data }) {
         ({{ meta.reviews_with_text }} with written text<span v-if="sourceSummary">; {{ sourceSummary }}</span>) from the last
         {{ meta.months }} {{ meta.months === 1 ? 'month' : 'months' }} · most recent review:
         <strong>{{ meta.latest_review_date ?? 'n/a' }}</strong>
+        <span v-if="meta.web_mentions"> · plus {{ meta.web_mentions }} web mentions (separate from star reviews)</span>
         <span v-if="meta.from_cache"> · reused a recent pull (no new scraping charge)</span>
+        <span v-if="billingText"> · {{ billingText }}</span>
       </p>
       <p v-for="note in meta?.notes ?? []" :key="note" class="status analysis-note">ℹ️ {{ note }}</p>
 
@@ -255,6 +299,10 @@ function handleUnifiedResult({ data }) {
         :review-list="reviewList"
         :business-location="me.business_location"
         :yelp-url="me.yelp_url"
+        :opentable-url="me.opentable_url"
+        :doordash-url="me.doordash_url"
+        :grubhub-url="me.grubhub_url"
+        :replies-off="repliesOff"
       />
       <LockedPanel
         v-else-if="!isPaid()"
@@ -268,6 +316,7 @@ function handleUnifiedResult({ data }) {
       <SentimentDriftChart :result="sentimentResult" :meta="meta" />
       <WeeklyThemesChart :weekly="sentimentResult?.weekly ?? []" :meta="meta" />
       <TrendsPanel :result="trendsResult" :meta="meta" />
+      <IndustryPanel :result="industryResult" :meta="meta" :locked="!isPaid()" />
       <MentionsPanel v-if="isPaid()" :result="mentionsResult" />
 
       <template v-if="isPaid()">
@@ -281,9 +330,9 @@ function handleUnifiedResult({ data }) {
       </template>
       <template v-else>
         <LockedPanel
-          title="🏷️ Platform Comparison (Google + Yelp)"
+          title="🏷️ Platform Comparison (every platform you connect)"
           chart-name="Platform Comparison"
-          technique="Pulls your Yelp page alongside Google and compares review volume, ratings and pace per platform, with a warning when a changing platform mix could distort your averages."
+          technique="Pulls your Yelp, reservation and delivery-app pages alongside Google and compares review volume, ratings and pace per platform, with a warning when a changing platform mix could distort your averages."
         />
         <LockedPanel
           title="🔥 Wait-Time Revenue Leak Heatmap"
@@ -327,8 +376,8 @@ function handleUnifiedResult({ data }) {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: #faf8ff;
-  border: 1px solid #e4defa;
+  background: var(--brand-soft, #faf8ff);
+  border: 1px solid var(--brand-border, #e4defa);
   border-radius: 10px;
   padding: 12px 16px;
   font-size: 13px;
@@ -372,8 +421,8 @@ function handleUnifiedResult({ data }) {
 }
 
 .view-btn.active {
-  background: #ff4b4b;
-  border-color: #ff4b4b;
+  background: var(--brand, #ff4b4b);
+  border-color: var(--brand, #ff4b4b);
   color: white;
   font-weight: 600;
 }

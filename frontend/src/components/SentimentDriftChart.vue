@@ -131,7 +131,6 @@ const chartOptions = {
   <section class="chart-section sentiment-drift-section">
     <div class="title-row">
       <h3>📈 Sentiment Drift Matrix</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">

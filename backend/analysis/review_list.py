@@ -27,19 +27,39 @@ def _dt(value) -> Optional[datetime]:
     return dt.astimezone(timezone.utc).replace(tzinfo=None) if dt.tzinfo else dt
 
 
-def build_review_list(reviews: List[dict], limit: int = MAX_ITEMS) -> dict:
+def build_review_list(reviews: List[dict], web_items: Optional[List[dict]] = None, limit: int = MAX_ITEMS,
+                      unrated: Optional[List[dict]] = None) -> dict:
     """Newest first. Author names are never included; emails/phones/order numbers are removed
     from the text (best effort)."""
-    ordered = sorted(reviews, key=lambda r: (_dt(r.get("datetime_utc")) is not None, _dt(r.get("datetime_utc")) or datetime.min), reverse=True)
-    items = []
-    for r in ordered[:limit]:
+    entries = []
+    for r in reviews:
         text = (r.get("text") or "").strip()
-        items.append({
+        entries.append((_dt(r.get("datetime_utc")), {
             "key": review_key(r),
             "source": r.get("source", "google"),
             "rating": r["rating"],
             "date": r.get("datetime_utc"),
             "text": redact_pii(text)[:MAX_TEXT] if text else "",
             "has_text": bool(text),
-        })
-    return {"items": items, "total": len(reviews), "shown": len(items)}
+        }))
+    # Internet mentions: unrated written items. They can't be replied to here and carry no stars.
+    for m in web_items or []:
+        text = f"{m['title']}. {m['snippet']}".strip(". ")
+        entries.append((_dt(m.get("date")), {
+            "key": hashlib.sha1(f"web|{m['url']}".encode("utf-8")).hexdigest(),
+            "source": "web",
+            "rating": None,
+            "date": m.get("date"),
+            "text": redact_pii(text)[:MAX_TEXT],
+            "has_text": True,
+            "url": m["url"],
+            "domain": m["domain"],
+            "category": m["category"],
+            "sentiment": m["sentiment"],
+        }))
+    # Unrated written reviews from a delivery app (Uber Eats): already shaped, no stars, can't be replied to here.
+    for u in unrated or []:
+        entries.append((_dt(u.get("date")), u))
+    entries.sort(key=lambda e: (e[0] is not None, e[0] or datetime.min), reverse=True)
+    items = [e[1] for e in entries[:limit]]
+    return {"items": items, "total": len(entries), "shown": len(items)}

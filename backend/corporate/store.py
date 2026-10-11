@@ -22,6 +22,10 @@ class DuplicateMember(Exception):
     pass
 
 
+class DuplicateRef(Exception):
+    """The same purchase (Stripe session) was credited twice."""
+
+
 # ----------------------------------------------------------------------------
 class MemoryStore:
     def __init__(self):
@@ -34,12 +38,15 @@ class MemoryStore:
         self.audit_rows: List[dict] = []
         self.usage_rows: List[dict] = []
         self.reply_rows: Dict[tuple, dict] = {}
+        self.wallets: Dict[str, float] = {}
+        self.ledger_rows: List[dict] = []
+        self.purchases: Dict[str, dict] = {}
 
     # ---- organizations & members
-    def create_org(self, name, owner_id, owner_email, monthly_budget_reviews):
+    def create_org(self, name, owner_id, owner_email, monthly_budget_usd=None):
         with self._lock:
             org = {"id": str(uuid.uuid4()), "name": name, "owner_id": owner_id,
-                   "monthly_budget_reviews": monthly_budget_reviews, "created_at": now_iso()}
+                   "monthly_budget_usd": monthly_budget_usd, "created_at": now_iso()}
             self.orgs[org["id"]] = org
             member = {"id": str(uuid.uuid4()), "org_id": org["id"], "user_id": owner_id,
                       "email": owner_email.lower(), "role": "owner", "created_at": now_iso()}
@@ -53,6 +60,10 @@ class MemoryStore:
     def list_orgs(self):
         with self._lock:
             return [_copy(o) for o in self.orgs.values()]
+
+    def find_org_by_sso_domain(self, domain):
+        with self._lock:
+            return next((_copy(o) for o in self.orgs.values() if o.get("sso_domain") == domain), None)
 
     def update_org(self, org_id, **fields):
         with self._lock:
@@ -104,6 +115,8 @@ class MemoryStore:
             loc = {"id": str(uuid.uuid4()), "org_id": org_id, "name": data["name"],
                    "brand": data.get("brand"), "region": data.get("region"),
                    "google_query": data["google_query"], "yelp_url": data.get("yelp_url"),
+                   "opentable_url": data.get("opentable_url"),
+                   "doordash_url": data.get("doordash_url"), "ubereats_url": data.get("ubereats_url"), "grubhub_url": data.get("grubhub_url"), "provider_links": data.get("provider_links") or [],
                    "manager_email": (data.get("manager_email") or None) and data["manager_email"].lower(),
                    "is_active": True, "created_at": now_iso()}
             self.locations[loc["id"]] = loc
@@ -222,6 +235,61 @@ class MemoryStore:
                 self.reply_rows[(scope, review_key)] = row
             return _copy(row)
 
+    # ---- credits: wallets, ledger, purchases (scope = "user:<id>" or "org:<id>")
+    def credit_balance(self, scope):
+        with self._lock:
+            return float(self.wallets.get(scope, 0.0))
+
+    def apply_credit(self, scope, amount, kind, *, cost_usd=0.0, allowance_usd=0.0, description="", ref=None, floor=0.0):
+        with self._lock:
+            if kind == "purchase" and ref and any(r["kind"] == "purchase" and r["ref"] == ref for r in self.ledger_rows):
+                raise DuplicateRef(ref)
+            old = self.wallets.get(scope, 0.0)
+            new = min(old, max(old + amount, floor)) if amount < 0 else old + amount
+            self.wallets[scope] = new
+            self.ledger_rows.append({"id": str(uuid.uuid4()), "scope": scope, "kind": kind, "amount_usd": round(new - old, 6),
+                                     "cost_usd": cost_usd, "allowance_usd": allowance_usd, "description": description, "ref": ref,
+                                     "balance_after": round(new, 6), "created_at": now_iso()})
+            return round(new, 6)
+
+    def allowance_used(self, scope, since_iso):
+        with self._lock:
+            return round(sum(r["allowance_usd"] for r in self.ledger_rows
+                             if r["scope"] == scope and r["kind"] == "usage" and r["created_at"] >= since_iso), 6)
+
+    def credit_spent(self, scope, since_iso):
+        """Dollars of usage (what the runs actually cost) recorded for this wallet since `since_iso`."""
+        with self._lock:
+            return round(sum(r["cost_usd"] for r in self.ledger_rows
+                             if r["scope"] == scope and r["kind"] == "usage" and r["created_at"] >= since_iso), 6)
+
+    def list_ledger(self, scope, limit=20):
+        with self._lock:
+            rows = [r for r in self.ledger_rows if r["scope"] == scope]
+            return [_copy(r) for r in sorted(rows, key=lambda r: r["created_at"], reverse=True)[:limit]]
+
+    def add_purchase(self, session_id, scope, user_id, user_email, price_usd, credit_usd):
+        with self._lock:
+            row = {"id": str(uuid.uuid4()), "session_id": session_id, "scope": scope, "user_id": user_id,
+                   "user_email": user_email, "price_usd": price_usd, "credit_usd": credit_usd,
+                   "status": "pending", "created_at": now_iso(), "paid_at": None}
+            self.purchases[session_id] = row
+            return _copy(row)
+
+    def get_purchase(self, session_id):
+        with self._lock:
+            return _copy(self.purchases.get(session_id))
+
+    def list_pending_purchases(self, scope, limit=10):
+        with self._lock:
+            rows = [p for p in self.purchases.values() if p["scope"] == scope and p["status"] == "pending"]
+            return [_copy(p) for p in sorted(rows, key=lambda p: p["created_at"], reverse=True)[:limit]]
+
+    def mark_purchase_paid(self, session_id):
+        with self._lock:
+            if session_id in self.purchases:
+                self.purchases[session_id].update(status="paid", paid_at=now_iso())
+
 
 # ----------------------------------------------------------------------------
 class SupabaseStore:
@@ -250,9 +318,9 @@ class SupabaseStore:
         return rows[0] if rows else None
 
     # ---- organizations & members
-    def create_org(self, name, owner_id, owner_email, monthly_budget_reviews):
+    def create_org(self, name, owner_id, owner_email, monthly_budget_usd=None):
         org = self._one(self._t("organizations").insert(
-            {"name": name, "owner_id": owner_id, "monthly_budget_reviews": monthly_budget_reviews}).execute())
+            {"name": name, "owner_id": owner_id, "monthly_budget_usd": monthly_budget_usd}).execute())
         self._t("org_members").insert(
             {"org_id": org["id"], "user_id": owner_id, "email": owner_email.lower(), "role": "owner"}).execute()
         return org
@@ -262,6 +330,9 @@ class SupabaseStore:
 
     def list_orgs(self):
         return self._rows(self._t("organizations").select("*").execute())
+
+    def find_org_by_sso_domain(self, domain):
+        return self._one(self._t("organizations").select("*").eq("sso_domain", domain).limit(1).execute())
 
     def update_org(self, org_id, **fields):
         self._t("organizations").update(fields).eq("id", org_id).execute()
@@ -302,6 +373,8 @@ class SupabaseStore:
     def add_location(self, org_id, data):
         row = {"org_id": org_id, "name": data["name"], "brand": data.get("brand"), "region": data.get("region"),
                "google_query": data["google_query"], "yelp_url": data.get("yelp_url"),
+                   "opentable_url": data.get("opentable_url"),
+                   "doordash_url": data.get("doordash_url"), "ubereats_url": data.get("ubereats_url"), "grubhub_url": data.get("grubhub_url"), "provider_links": data.get("provider_links") or [],
                "manager_email": (data.get("manager_email") or None) and data["manager_email"].lower(),
                "is_active": True}
         return self._one(self._t("locations").insert(row).execute())
@@ -325,10 +398,24 @@ class SupabaseStore:
         self._t("locations").delete().eq("id", location_id).execute()
 
     # ---- snapshots
+    OPTIONAL_SNAPSHOT_COLUMNS = ("industry", "providers", "providers_checked_at")
+
     def add_snapshot(self, location_id, snapshot):
         row = {**{k: v for k, v in snapshot.items() if k != "id"}, "location_id": location_id}
         row.setdefault("run_at", now_iso())
-        return self._one(self._t("location_snapshots").insert(row).execute())
+        # A database update that adds an optional column may not have been run yet. The check itself must still be
+        # saved, so drop the optional columns the database complains about (it names one at a time) and try again.
+        for _ in range(len(self.OPTIONAL_SNAPSHOT_COLUMNS) + 1):
+            try:
+                return self._one(self._t("location_snapshots").insert(row).execute())
+            except Exception as exc:
+                msg = str(exc).lower()
+                missing = [k for k in self.OPTIONAL_SNAPSHOT_COLUMNS if k in row and (f"'{k}'" in msg or f'"{k}"' in msg)]
+                if not missing:
+                    raise
+                for k in missing:
+                    row.pop(k)
+        raise RuntimeError("could not save the check")
 
     def snapshots(self, location_id, limit=30):
         return self._rows(self._t("location_snapshots").select("*").eq("location_id", location_id)
@@ -420,6 +507,53 @@ class SupabaseStore:
             if "23505" in str(exc) or "duplicate" in str(exc).lower():   # lost a race with another save: update instead
                 return update(current())
             raise
+
+    # ---- credits
+    def credit_balance(self, scope):
+        row = self._one(self._t("credit_wallets").select("*").eq("scope", scope).limit(1).execute())
+        return float(row["balance_usd"]) if row else 0.0
+
+    def apply_credit(self, scope, amount, kind, *, cost_usd=0.0, allowance_usd=0.0, description="", ref=None, floor=0.0):
+        # One atomic database function: it locks the wallet row, clamps at the floor, writes the ledger
+        # row, and rejects a repeat purchase reference (so a payment can never be credited twice).
+        try:
+            resp = self.c.rpc("credit_apply", {
+                "p_scope": scope, "p_amount": amount, "p_kind": kind, "p_cost": cost_usd, "p_allowance": allowance_usd,
+                "p_description": description, "p_ref": ref, "p_floor": floor,
+            }).execute()
+        except Exception as exc:
+            if "23505" in str(exc) or "duplicate" in str(exc).lower():
+                raise DuplicateRef(ref)
+            raise
+        return round(float(resp.data), 6)
+
+    def allowance_used(self, scope, since_iso):
+        rows = self._rows(self._t("credit_ledger").select("allowance_usd").eq("scope", scope).eq("kind", "usage")
+                          .gte("created_at", since_iso).execute())
+        return round(sum(float(r["allowance_usd"] or 0) for r in rows), 6)
+
+    def credit_spent(self, scope, since_iso):
+        rows = self._rows(self._t("credit_ledger").select("cost_usd").eq("scope", scope).eq("kind", "usage")
+                          .gte("created_at", since_iso).execute())
+        return round(sum(float(r["cost_usd"] or 0) for r in rows), 6)
+
+    def list_ledger(self, scope, limit=20):
+        return self._rows(self._t("credit_ledger").select("*").eq("scope", scope).order("created_at", desc=True).limit(limit).execute())
+
+    def add_purchase(self, session_id, scope, user_id, user_email, price_usd, credit_usd):
+        return self._one(self._t("credit_purchases").insert({
+            "session_id": session_id, "scope": scope, "user_id": user_id, "user_email": user_email,
+            "price_usd": price_usd, "credit_usd": credit_usd, "status": "pending"}).execute())
+
+    def get_purchase(self, session_id):
+        return self._one(self._t("credit_purchases").select("*").eq("session_id", session_id).limit(1).execute())
+
+    def list_pending_purchases(self, scope, limit=10):
+        return self._rows(self._t("credit_purchases").select("*").eq("scope", scope).eq("status", "pending")
+                          .order("created_at", desc=True).limit(limit).execute())
+
+    def mark_purchase_paid(self, session_id):
+        self._t("credit_purchases").update({"status": "paid", "paid_at": now_iso()}).eq("session_id", session_id).execute()
 
 
 # ----------------------------------------------------------------------------

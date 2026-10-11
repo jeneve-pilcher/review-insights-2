@@ -9,13 +9,18 @@ import PlatformComparison from './PlatformComparison.vue'
 import ReviewReplies from './ReviewReplies.vue'
 import RevenueSignals from './RevenueSignals.vue'
 import SentimentDriftChart from './SentimentDriftChart.vue'
+import IndustryPanel from './IndustryPanel.vue'
+import LocationProviders from './LocationProviders.vue'
 import TrendsPanel from './TrendsPanel.vue'
 import WaitTimeHeatmap from './WaitTimeHeatmap.vue'
 import WeeklyThemesChart from './WeeklyThemesChart.vue'
 
 const props = defineProps({
   locationId: { type: String, required: true },
+  info: { type: Object, default: null },
 })
+const repliesOff = computed(() => props.info?.org?.pack?.replies_allowed === false)
+const providersOn = computed(() => Boolean(props.info?.org?.provider_data_enabled && props.info?.org?.pack?.provider_level))
 const emit = defineEmits(['back', 'changed'])
 
 const loc = ref(null)
@@ -92,7 +97,7 @@ async function runNow() {
   }
 }
 
-const VIEW_LABELS = { combined: 'Combined', google: 'Google', yelp: 'Yelp' }
+const VIEW_LABELS = { combined: 'Combined', google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', grubhub: 'Grubhub' }
 const viewChoices = computed(() => (analysis.value && analysis.value.meta.sources.length > 1 ? ['combined', ...analysis.value.meta.sources] : []))
 </script>
 
@@ -141,7 +146,7 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
       <div v-if="history.length > 1" class="oc-card" style="margin: 14px 0">
         <strong>Rating over time</strong>
         <svg v-if="spark" viewBox="0 0 240 48" width="240" height="48" style="display: block; margin-top: 6px">
-          <polyline :points="spark" fill="none" stroke="#7c5ce0" stroke-width="2" />
+          <polyline :points="spark" fill="none" style="stroke: var(--accent, #7c5ce0)" stroke-width="2" />
         </svg>
         <div class="oc-scroll">
           <table class="oc-table" style="margin-top: 8px">
@@ -164,7 +169,7 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
         <p class="chart-desc">
           Every panel for this location: signals, reviews with draft replies, language analysis,
           the wait-time heatmap, and optionally internet mentions. It pulls this location's reviews
-          now, which counts toward your monthly budget (repeat pulls inside 30 minutes are free).
+          now, which is paid from your company credit and counts toward your monthly spending limit, if you set one (repeat pulls inside 30 minutes are free).
         </p>
         <div class="analysis-form">
           <label class="field">
@@ -211,12 +216,18 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
           :location-id="loc.id"
           :business-location="loc.google_query"
           :yelp-url="loc.yelp_url"
+          :opentable-url="loc.opentable_url"
+          :doordash-url="loc.doordash_url"
+          :grubhub-url="loc.grubhub_url"
+          :replies-off="repliesOff"
         />
         <RevenueSignals :result="analysis.signals" :meta="analysis.meta" />
         <PlatformComparison v-if="(analysis.platforms?.platforms?.length ?? 0) > 1" :result="analysis.platforms" />
         <SentimentDriftChart :result="analysis.sentiment_drift" :meta="analysis.meta" />
         <WeeklyThemesChart :weekly="analysis.sentiment_drift?.weekly ?? []" :meta="analysis.meta" />
         <TrendsPanel :result="analysis.trends" :meta="analysis.meta" />
+        <IndustryPanel :result="analysis.industry" :meta="analysis.meta" />
+        <LocationProviders v-if="providersOn" :location-id="loc.id" />
         <MentionsPanel v-if="analysis.mentions" :result="analysis.mentions" />
         <WaitTimeHeatmap :result="analysis.wait_time_heatmap" :meta="analysis.meta" />
         <NegativeReviewAlerts :business-location="loc.name" :result="analysis.negative_reviews" :meta="analysis.meta" />

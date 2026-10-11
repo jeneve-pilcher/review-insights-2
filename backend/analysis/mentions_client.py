@@ -18,7 +18,8 @@ import config
 from analysis import outscraper_client as oc
 
 BASE_URL = os.environ.get("OUTSCRAPER_BASE_URL", "https://api.app.outscraper.com").rstrip("/")
-PAGES_PER_QUERY = int(os.environ.get("MENTIONS_PAGES_PER_QUERY", "1"))   # 1 page = about 10 results per query
+PAGES_PER_QUERY = int(os.environ.get("MENTIONS_PAGES_PER_QUERY", "2"))   # 1 page = about 10 results per query
+MAX_PAGES = 5
 REQUEST_TIMEOUT = 60
 POLL_INTERVAL = 2.0
 POLL_TIMEOUT = 120.0
@@ -33,6 +34,15 @@ def build_queries(terms: str) -> List[str]:
         f"{base} -site:google.com -site:yelp.com",   # the open web: news, blogs, forums, social
         f"site:reddit.com {base}",                    # Reddit threads specifically
     ]
+
+
+def effective_pages(pages: Optional[int] = None) -> int:
+    return max(1, min(MAX_PAGES, int(pages or PAGES_PER_QUERY)))
+
+
+def searches_for(terms: str, pages: Optional[int] = None) -> int:
+    """How many billable web searches one pull makes (queries x pages)."""
+    return len(build_queries(terms)) * effective_pages(pages)
 
 
 def tbs_for_months(months: int) -> Optional[str]:
@@ -78,8 +88,9 @@ def _wait_for_results(payload: dict) -> dict:
     raise HTTPException(status_code=504, detail="Outscraper took too long to return the web search.")
 
 
-def _search(query: str, tbs: Optional[str]) -> dict:
-    params = {"query": query, "pagesPerQuery": PAGES_PER_QUERY, "pages_per_query": PAGES_PER_QUERY, "async": "false"}
+def _search(query: str, tbs: Optional[str], pages: Optional[int] = None) -> dict:
+    n = effective_pages(pages)
+    params = {"query": query, "pagesPerQuery": n, "pages_per_query": n, "async": "false"}
     if tbs:
         params["tbs"] = tbs
     resp = _get(f"{BASE_URL}/google-search", params)
@@ -123,9 +134,10 @@ def _normalize(raw: dict) -> Optional[dict]:
     }
 
 
-def fetch_mentions_with_meta(terms: str, months: int) -> Tuple[List[dict], bool, List[str]]:
+def fetch_mentions_with_meta(terms: str, months: int, pages: Optional[int] = None) -> Tuple[List[dict], bool, List[str]]:
     """Returns (items, served_from_cache, notes). Raises HTTPException only if EVERY search failed."""
-    key = ("mentions", terms.strip().lower(), months, PAGES_PER_QUERY)
+    pages = effective_pages(pages)
+    key = ("mentions", terms.strip().lower(), months, pages)
     hit = oc.cache_lookup(key)
     if hit is not None:
         items, notes = hit
@@ -137,7 +149,7 @@ def fetch_mentions_with_meta(terms: str, months: int) -> Tuple[List[dict], bool,
 
     for query in build_queries(terms):
         try:
-            payload = _search(query, tbs)
+            payload = _search(query, tbs, pages)
         except HTTPException as exc:
             errors.append(exc)
             continue

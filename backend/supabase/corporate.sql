@@ -132,3 +132,107 @@ alter table public.review_replies enable row level security;
 -- Terms of Service acceptance (which version each person agreed to, and when).
 alter table public.profiles add column if not exists terms_version text;
 alter table public.profiles add column if not exists terms_accepted_at timestamptz;
+
+-- OpenTable pages (single accounts keep them on the profile; companies per location).
+alter table public.profiles add column if not exists opentable_url text;
+alter table public.locations add column if not exists opentable_url text;
+
+-- ---------------------------------------------------------------------------------------------
+-- Usage credits: prepaid balances, a ledger of every change, and Stripe credit purchases.
+-- scope = 'user:<id>' for a single account or 'org:<id>' for a company.
+create table if not exists public.credit_wallets (
+  scope text primary key,
+  balance_usd numeric not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.credit_ledger (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null,
+  kind text not null check (kind in ('purchase','usage','adjustment','refund')),
+  amount_usd numeric not null,          -- change to the credit balance (negative = spent)
+  cost_usd numeric not null default 0,  -- the API cost this entry covers
+  allowance_usd numeric not null default 0, -- part of that cost paid from the monthly plan allowance
+  description text,
+  ref text,
+  balance_after numeric not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists ledger_scope_idx on public.credit_ledger (scope, created_at desc);
+-- A purchase (Stripe session) can only ever be credited once.
+create unique index if not exists ledger_purchase_ref_idx on public.credit_ledger (ref) where kind = 'purchase';
+
+create table if not exists public.credit_purchases (
+  id uuid primary key default gen_random_uuid(),
+  session_id text not null unique,
+  scope text not null,
+  user_id text,
+  user_email text,
+  price_usd numeric not null,
+  credit_usd numeric not null,
+  status text not null default 'pending' check (status in ('pending','paid')),
+  created_at timestamptz not null default now(),
+  paid_at timestamptz
+);
+create index if not exists purchases_scope_idx on public.credit_purchases (scope, status);
+
+-- Atomically applies a credit change: locks the wallet, never lets spending go below the floor,
+-- writes the ledger row, and returns the new balance. A repeated purchase ref fails (23505).
+create or replace function public.credit_apply(
+  p_scope text, p_amount numeric, p_kind text, p_cost numeric, p_allowance numeric,
+  p_description text, p_ref text, p_floor numeric
+) returns numeric language plpgsql as $$
+declare
+  old_balance numeric;
+  new_balance numeric;
+begin
+  insert into public.credit_wallets (scope, balance_usd) values (p_scope, 0) on conflict (scope) do nothing;
+  select balance_usd into old_balance from public.credit_wallets where scope = p_scope for update;
+  if p_amount < 0 then
+    new_balance := least(old_balance, greatest(old_balance + p_amount, p_floor));
+  else
+    new_balance := old_balance + p_amount;
+  end if;
+  insert into public.credit_ledger (scope, kind, amount_usd, cost_usd, allowance_usd, description, ref, balance_after)
+    values (p_scope, p_kind, new_balance - old_balance, p_cost, p_allowance, p_description, p_ref, new_balance);
+  update public.credit_wallets set balance_usd = new_balance, updated_at = now() where scope = p_scope;
+  return new_balance;
+end $$;
+
+alter table public.credit_wallets enable row level security;
+alter table public.credit_ledger enable row level security;
+alter table public.credit_purchases enable row level security;
+
+-- DoorDash, Uber Eats and Grubhub pages.
+alter table public.profiles add column if not exists doordash_url text;
+alter table public.profiles add column if not exists ubereats_url text;
+alter table public.profiles add column if not exists grubhub_url text;
+alter table public.locations add column if not exists doordash_url text;
+alter table public.locations add column if not exists ubereats_url text;
+alter table public.locations add column if not exists grubhub_url text;
+
+-- Monthly spending limit for a company, in dollars of credit. Empty = no limit. (Replaces the old review-count budget.)
+alter table public.organizations add column if not exists monthly_budget_usd numeric;
+
+-- A monthly spending limit (dollars of API usage) for individual accounts. Empty = no limit.
+alter table public.profiles add column if not exists monthly_limit_usd numeric;
+
+-- White-label branding (set by an administrator when a deal is signed) and industry packs.
+alter table public.organizations add column if not exists white_label boolean not null default false;
+alter table public.organizations add column if not exists brand_name text;
+alter table public.organizations add column if not exists brand_primary text;
+alter table public.organizations add column if not exists brand_accent text;
+alter table public.organizations add column if not exists brand_logo_url text;
+alter table public.organizations add column if not exists sso_domain text;
+alter table public.organizations add column if not exists industry text;
+alter table public.profiles add column if not exists industry text;
+create unique index if not exists organizations_sso_domain_idx on public.organizations (lower(sso_domain)) where sso_domain is not null;
+
+-- A compact industry summary saved with every check, so company pages can compare locations by industry theme.
+alter table public.location_snapshots add column if not exists industry jsonb;
+
+-- Healthcare: provider-level (individual doctor) data is OFF unless an administrator turns it on for a company.
+alter table public.organizations add column if not exists provider_data_enabled boolean not null default false;
+alter table public.locations add column if not exists provider_links jsonb not null default '[]'::jsonb;
+alter table public.location_snapshots add column if not exists providers jsonb;
+alter table public.location_snapshots add column if not exists providers_checked_at timestamptz;

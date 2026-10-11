@@ -15,14 +15,13 @@ const readItems = computed(() => negativeReadItems(props.result?.summary))
 
 // Only worth showing which platform a review came from when there's more than one.
 const showSource = computed(() => (props.meta?.sources?.length ?? 0) > 1)
-const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp' }
+const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', grubhub: 'Grubhub' }
 </script>
 
 <template>
   <section class="chart-section">
     <div class="title-row">
       <h3>🚨 Negative Review Alerts</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">

@@ -10,7 +10,6 @@ defineProps({
 <template>
   <div v-if="items.length" class="nlp-callout">
     <div class="nlp-callout-head">
-      <span class="nlp-badge">🧠 NLP</span>
       <strong>{{ title }}</strong>
     </div>
     <ul class="nlp-list">
@@ -37,8 +36,8 @@ defineProps({
 }
 
 .nlp-callout {
-  background: #faf8ff;
-  border: 1px solid #e4defa;
+  background: var(--brand-soft, #faf8ff);
+  border: 1px solid var(--brand-border, #e4defa);
   border-radius: 10px;
   padding: 12px 16px;
   margin: 0 0 18px;
@@ -82,7 +81,7 @@ defineProps({
 
 .nlp-item.nlp-warn::before { background: #e67e22; }
 .nlp-item.nlp-good::before { background: #2ecc71; }
-.nlp-item.nlp-info::before { background: #7c5ce0; }
+.nlp-item.nlp-info::before { background: var(--accent, #7c5ce0); }
 
 .nlp-technique {
   margin: 10px 0 0;

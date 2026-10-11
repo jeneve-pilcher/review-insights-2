@@ -1,50 +1,28 @@
-Review Insights - ALL updates, v4 (adds Terms of Service)
-=========================================================
-Adds a Terms of Service (with a "Before you rely on it" section), a link to it in the
-dashboard footer, and a one-time "agree to continue" step that records which version each
-person agreed to and when. This zip holds the FINAL version of every file changed by all
-updates so far. Apply it ONCE, whether or not you applied earlier zips.
+Review Insights - ALL updates, v24 (the 31% statistic is back)
+==============================================================
+This zip holds the FINAL version of every file changed by all updates so far, EXCEPT frontend/src/content/stats.js
+(your own statistics file, which is yours and is never included). Apply it ONCE.
+It includes everything from v5 to v23. NO NEW SQL. No new packages. No router change.
 
-It does NOT include .env files, Dockerfiles, docker-compose.yml, .gitignore,
-requirements.txt or package.json. No new packages are needed.
+*** BEFORE UNZIPPING: back up your landing page ***
+      cp frontend/src/views/LandingView.vue ~/LandingView.backup8.vue
 
-1) From your project root (the folder containing backend/ and frontend/):
+1) From your project root:      unzip -o ~/Downloads/review-insights-all-updates-v24.zip
+2) Rebuild:                     docker compose down && docker compose up --build
 
-       unzip -o ~/Downloads/review-insights-all-updates-v4.zip
+WHAT CHANGED
+- The strip now shows FIVE statistics: the four from before plus the 31% you wanted kept. All are from BrightLocal's
+  Local Consumer Review Survey 2026 (1,002 US adults), checked against its own page; each source line links to it.
+      97%   of consumers read reviews before choosing a local business
+      6     review sites used by the average consumer when choosing a local business
+      85%   of consumers are more likely to use a business after reading positive reviews
+      77%   of consumers say negative reviews make them less likely to choose a business
+      31%   of consumers will only use a business rated 4.5 stars or higher, up from 17% a year earlier
+- The stat cards are a little narrower (170px minimum instead of 220px) so all five fit on ONE row on a wide screen,
+  instead of leaving a single card alone on a second row. On a narrow screen they wrap as before.
 
-   Use the terminal command. Do NOT drag folders in Finder (its "Replace" deletes files
-   this zip doesn't contain).
+TO SHOW FEWER: delete an entry from the list in frontend/src/content/defaultStats.js (or tell me which).
 
-2) In Supabase -> SQL Editor, run ONCE (paste the WHOLE file; it is safe to run twice):
-
-       alter table public.profiles add column if not exists yelp_url text;
-
-       -- then open backend/supabase/corporate.sql, copy ALL of it, paste it, Run.
-       -- It now also adds terms_version / terms_accepted_at to profiles.
-
-   RUN THIS BEFORE STEP 4. Until the terms columns exist, people cannot record their
-   agreement and will be stuck on the "agree to continue" screen.
-
-3) *** FILL IN YOUR COMPANY DETAILS ***  (frontend/src/legal/terms.js, the COMPANY block)
-
-       COMPANY_NAME, CONTACT_EMAIL, GOVERNING_LAW, REFUND_POLICY, PRIVACY_POLICY
-
-   Anything left blank is shown highlighted in yellow inside the document so it can't be
-   missed. Do not launch with yellow text showing.
-
-4) Rebuild:
-
-       docker compose down
-       docker compose up --build
-
-IMPORTANT
-- The Terms are a starting draft, NOT legal advice. Have a lawyer review them (especially
-  sections 5, 10, 11 and 14) before you rely on them.
-- You also need a PRIVACY POLICY. The terms point to it, and you handle review text and
-  personal data. This zip does not include one.
-- Change TERMS_VERSION in terms.js whenever the meaning of the terms changes: everyone is
-  then asked to agree again.
-- The terms are shown on the dashboard. Your landing and signup pages are not part of this
-  zip, so add a link to the terms there too (people should be able to read them before
-  signing up).
-- To turn off the agree-to-continue step, set REQUIRE_ACCEPTANCE = false in terms.js.
+IF YOU HAVE YOUR OWN frontend/src/content/stats.js
+  Your file always wins, so it will not show these. Add them to your file in the same shape (value, label, source, url).
+  If you do not have a stats.js you do not need to do anything.

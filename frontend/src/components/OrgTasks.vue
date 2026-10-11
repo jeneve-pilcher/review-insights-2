@@ -1,12 +1,14 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { orgApi } from '../api'
+import { filterByTheme, themeCounts } from '../utils/industryOrg'
 
 const props = defineProps({
   info: { type: Object, required: true },
 })
 
 const status = ref('open')
+const themeFilter = ref('')
 const alerts = ref([])
 const loading = ref(true)
 const error = ref('')
@@ -14,8 +16,13 @@ const message = ref('')
 const edits = reactive({})
 const busy = reactive({})
 
-const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp' }
+const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', grubhub: 'Grubhub' }
 const STATUS_LABELS = { open: 'Open', acknowledged: 'In progress', resolved: 'Resolved' }
+
+// The industry's themes, so tasks can be filtered by what the review is about.
+const themeChips = computed(() => themeCounts(alerts.value, props.info.org.pack))
+const themeLabels = computed(() => Object.fromEntries((props.info.org.pack?.themes ?? []).map((t) => [t.id, t.label])))
+const shown = computed(() => filterByTheme(alerts.value, themeFilter.value))
 
 async function load() {
   loading.value = true
@@ -64,7 +71,7 @@ async function save(alert, nextStatus) {
       </label>
     </div>
     <p class="oc-note">
-      Every new 1–2★ review (Google and Yelp, including star-only ratings) becomes a task for its
+      Every new 1–2★ review (Google, Yelp, OpenTable, DoorDash and Grubhub, including star-only ratings) becomes a task for its
       location. Tell the right person, add a note once you've followed up, then mark it resolved.
       Personal details are removed from the text.
     </p>
@@ -74,10 +81,26 @@ async function save(alert, nextStatus) {
     <p v-else-if="error" class="status error">{{ error }}</p>
     <p v-else-if="!alerts.length" class="status">Nothing here. 🎉</p>
 
-    <div v-for="a in alerts" :key="a.id" class="oc-card" style="margin-bottom: 10px">
+    <div v-if="themeChips.length" style="margin: 0 0 12px">
+      <span class="oc-note" style="margin-right: 6px">What it's about ({{ info.org.pack.label }}):</span>
+      <button class="oc-btn" style="margin: 0 6px 6px 0" :style="themeFilter === '' ? 'font-weight: 600' : 'opacity: 0.6'" @click="themeFilter = ''">All</button>
+      <button
+        v-for="c in themeChips"
+        :key="c.id"
+        class="oc-btn"
+        style="margin: 0 6px 6px 0"
+        :style="themeFilter === c.id ? 'font-weight: 600' : 'opacity: 0.6'"
+        @click="themeFilter = themeFilter === c.id ? '' : c.id"
+      >
+        {{ c.label }} ({{ c.count }})
+      </button>
+    </div>
+
+    <div v-for="a in shown" :key="a.id" class="oc-card" style="margin-bottom: 10px">
       <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
         <strong>{{ a.location_name }}</strong>
         <span class="oc-bad">{{ a.rating }}★</span>
+        <span v-for="t in a.themes" :key="t" class="oc-chip">{{ themeLabels[t] ?? t }}</span>
         <span class="oc-chip">{{ SOURCE_LABELS[a.source] ?? a.source }}</span>
         <span class="oc-note" style="margin: 0">{{ String(a.review_date || '').slice(0, 10) }}</span>
         <span class="oc-chip" :class="{ warn: a.status === 'open' }">{{ STATUS_LABELS[a.status] }}</span>

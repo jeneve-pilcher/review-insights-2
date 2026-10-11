@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { orgApi } from '../api'
+import { explainError } from '../utils/errors'
 import { ROLE_LABELS, visibleTabs } from '../utils/orgFormat'
 import LocationDetail from './LocationDetail.vue'
 import OrgActivity from './OrgActivity.vue'
@@ -30,7 +31,7 @@ async function load() {
     info.value = await orgApi.get()
   } catch (err) {
     if (err?.response?.status === 403) notMember.value = true
-    else error.value = err?.response?.data?.detail || 'Could not load your company.'
+    else error.value = explainError(err, 'Could not load your company')
   } finally {
     loading.value = false
   }
@@ -63,6 +64,7 @@ const tabs = computed(() => visibleTabs(info.value?.can))
       </div>
 
       <LocationDetail
+        :info="info"
         v-if="openLocationId"
         :location-id="openLocationId"
         @back="openLocationId = null"
@@ -140,7 +142,7 @@ const tabs = computed(() => visibleTabs(info.value?.can))
 .oc-tab.active {
   color: #1a1a1a;
   font-weight: 700;
-  border-bottom-color: #ff4b4b;
+  border-bottom-color: var(--brand, #ff4b4b);
 }
 
 .oc-card {
@@ -255,7 +257,7 @@ const tabs = computed(() => visibleTabs(info.value?.can))
 
 .oc-bar > div {
   height: 100%;
-  background: #7c5ce0;
+  background: var(--accent, #7c5ce0);
 }
 
 .oc-bar.over > div {

@@ -15,17 +15,32 @@ def _avg(rs: List[dict]) -> Optional[float]:
     return round(sum(r["rating"] for r in rs) / len(rs), 2) if rs else None
 
 
+def _industry_summary(reviews: List[dict], industry: Optional[str]):
+    """The compact industry trends saved with a check. Never allowed to break the snapshot itself."""
+    try:
+        from analysis.industries import get_pack
+        from analysis.industry_snapshot import compact_industry
+        return compact_industry(reviews, get_pack(industry))
+    except Exception as exc:
+        print(f"[industry] could not summarise industry trends: {exc}")
+        return None
+
+
 def compute_snapshot(reviews_by_source: Dict[str, List[dict]], *, months: int, fresh: Dict[str, int],
-                     notes: List[str], prev_avg_rating: Optional[float]) -> dict:
+                     notes: List[str], prev_avg_rating: Optional[float], industry: Optional[str] = None,
+                     providers: Optional[list] = None, providers_checked_at: Optional[str] = None) -> dict:
     """A compact, comparable summary of one location's reviews (stored over time)."""
     reviews = [r for rs in reviews_by_source.values() for r in rs]
     n = len(reviews)
 
-    drift = build_sentiment_drift(reviews)
+    from analysis.clinical import neutral_copies
+    from analysis.industries import get_pack
+    tone = neutral_copies(reviews) if get_pack(industry).get("clinical") else reviews     # clinical words are not complaints
+    drift = build_sentiment_drift(tone)
     velocity = drift.get("velocity") or {}
     nlp = drift.get("nlp") or {}
-    trends = build_trends(reviews)
-    signals = build_revenue_signals(reviews)
+    trends = build_trends(tone)
+    signals = build_revenue_signals(tone)
     wait = build_wait_summary(reviews)
     negatives = negative_summary(reviews)
     low = sum(1 for r in reviews if r["rating"] <= 2)
@@ -38,7 +53,9 @@ def compute_snapshot(reviews_by_source: Dict[str, List[dict]], *, months: int, f
     if signals.get("status") == "ok":
         top_signals = [{"type": s["type"], "title": s["title"]} for s in signals["signals"][:5]]
 
+    extra = {"providers": providers, "providers_checked_at": providers_checked_at} if providers is not None else {}
     return {
+        **extra,
         "months": months,
         "reviews_total": n,
         "reviews_google": len(reviews_by_source.get("google", [])),
@@ -59,6 +76,7 @@ def compute_snapshot(reviews_by_source: Dict[str, List[dict]], *, months: int, f
         "signals": top_signals,
         "notes": notes,
         "fresh_reviews": sum(fresh.values()),
+        "industry": _industry_summary(reviews, industry),
     }
 
 

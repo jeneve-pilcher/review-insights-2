@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { repliesApi } from '../api'
+import { CATEGORY_LABELS, toneClass, toneLabel } from '../utils/mentions'
 import {
   FILTERS,
   countByFilter,
@@ -17,6 +18,11 @@ const props = defineProps({
   locationId: { type: String, default: null },
   businessLocation: { type: String, default: null },
   yelpUrl: { type: String, default: null },
+  opentableUrl: { type: String, default: null },
+  doordashUrl: { type: String, default: null },
+  grubhubUrl: { type: String, default: null },
+  // Healthcare: answering a patient's review can disclose protected health information, so replies are switched off.
+  repliesOff: { type: Boolean, default: false },
 })
 
 const PAGE = 10
@@ -143,22 +149,33 @@ async function copy(item) {
   e.message = (await copyText(e.text)) ? 'Copied.' : 'Could not copy automatically. Select the text and copy it.'
 }
 
-const pageUrl = (item) => reviewPageUrl(item, { businessLocation: props.businessLocation, yelpUrl: props.yelpUrl })
-const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
+const pageUrl = (item) => reviewPageUrl(item, {
+    businessLocation: props.businessLocation,
+    yelpUrl: props.yelpUrl,
+    opentableUrl: props.opentableUrl,
+    doordashUrl: props.doordashUrl,
+    grubhubUrl: props.grubhubUrl,
+  })
+const stars = (n) => (n == null ? '' : '★'.repeat(n) + '☆'.repeat(5 - n))
 </script>
 
 <template>
   <section class="chart-section">
     <div class="title-row">
       <h3>💬 Reviews &amp; draft replies</h3>
-      <span class="data-basis">Every review in your window, newest first</span>
+      <span class="data-basis">Every review (and web mention) in your window, newest first</span>
     </div>
-    <p class="chart-desc">
+    <p v-if="repliesOff" class="status error">
+      Replies are turned off for healthcare accounts. Answering a patient's review in public can disclose protected health
+      information, even just by confirming the person was a patient. Follow up with the person privately, offline.
+    </p>
+    <p v-else class="chart-desc">
       Draft a reply to any review, edit it, then copy it and post it on the platform. Drafts are
       {{ engine === 'ai' ? 'written by AI from the review text (personal details removed first)' : 'built from a standard template, since AI drafting is not set up' }};
       always read before posting. <strong>This app can't post replies for you</strong>: direct posting
       needs each platform's approved API access. "Mark as sent" just records that you posted it, so
-      your team can see what's been answered.
+      your team can see what's been answered. Web mentions are listed here too, but they have no stars
+      and can't be replied to from this app.
     </p>
 
     <p v-if="!reviewList" class="status">Run analysis above to see your reviews.</p>
@@ -190,8 +207,13 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
 
       <div v-for="item in shown" :key="item.key" class="rr-card">
         <div class="rr-head">
-          <span class="rr-stars" :class="item.rating <= 2 ? 'low' : item.rating === 3 ? 'mid' : 'high'">{{ stars(item.rating) }}</span>
+          <span v-if="item.rating != null" class="rr-stars" :class="item.rating <= 2 ? 'low' : item.rating === 3 ? 'mid' : 'high'">{{ stars(item.rating) }}</span>
           <span class="rr-chip static">{{ platformLabel(item.source) }}</span>
+          <template v-if="item.rating == null">
+            <span class="rr-chip static">{{ CATEGORY_LABELS[item.category] ?? item.category }}</span>
+            <span class="mn-tone" :class="toneClass(item.sentiment)">{{ toneLabel(item.sentiment) }}</span>
+            <span class="oc-note" style="margin: 0">{{ item.domain }}</span>
+          </template>
           <span class="rr-date">{{ String(item.date || 'date unknown').slice(0, 10) }}</span>
           <span v-if="replies[item.key]" class="rr-chip static" :class="replies[item.key].status === 'sent' ? 'done' : 'draft'">
             {{ replyStatusLabel(replies[item.key]) }}
@@ -200,8 +222,15 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
         <p v-if="item.has_text" class="rr-text">{{ item.text }}</p>
         <p v-else class="rr-text rr-none">Star rating only, no written comment.</p>
 
+        <!-- web mentions and Uber Eats (no stars): read-only -->
+        <div v-if="item.rating == null || repliesOff" class="rr-actions">
+          <a v-if="item.url" class="oc-btn rr-link" :href="item.url" target="_blank" rel="noopener noreferrer">Open page ↗</a>
+          <span v-if="repliesOff" class="oc-note" style="margin: 0">Replies are off for healthcare accounts.</span>
+          <span v-else class="oc-note" style="margin: 0">No stars and no reply from here: this isn't a star review on a platform you can answer from this app.</span>
+        </div>
+
         <!-- editor -->
-        <div v-if="editors[item.key]?.open" class="rr-editor">
+        <div v-else-if="editors[item.key]?.open" class="rr-editor">
           <textarea v-model="editors[item.key].text" rows="4" class="rr-textarea"></textarea>
           <div class="oc-note">
             {{ wordCount(editors[item.key].text) }} words
@@ -337,8 +366,8 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
 }
 
 .rr-editor {
-  background: #faf8ff;
-  border: 1px solid #e4defa;
+  background: var(--brand-soft, #faf8ff);
+  border: 1px solid var(--brand-border, #e4defa);
   border-radius: 8px;
   padding: 10px;
   margin-top: 6px;

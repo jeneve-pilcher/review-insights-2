@@ -13,7 +13,9 @@ from analysis import pipeline
 from analysis.pii import redact_pii
 from analysis.review_utils import has_text
 from corporate import metrics
+from analysis import zocdoc_client
 from corporate.store import get_store
+from credits import rates as credit_rates, wallet
 from email_alerts import send_email
 
 MONITOR_MONTHS = int(os.environ.get("MONITOR_MONTHS", "3"))                # smaller window = cheaper scheduled runs
@@ -21,10 +23,14 @@ INTERVAL_HOURS = float(os.environ.get("MONITOR_INTERVAL_HOURS", "24"))     # how
 ALERT_LOOKBACK_DAYS = int(os.environ.get("ALERT_LOOKBACK_DAYS", "7"))      # only reviews this recent become alerts
 TICK_MINUTES = float(os.environ.get("SCHEDULER_TICK_MINUTES", "30"))
 MAX_RUNS_PER_TICK = int(os.environ.get("MAX_RUNS_PER_TICK", "10"))
-COST_PER_1K_REVIEWS = float(os.environ.get("COST_PER_1K_REVIEWS", "3.0"))  # for the dollar estimate shown to users
 ERROR_BACKOFF_HOURS = 6.0
 
-SOURCE_LABELS = {"google": "Google", "yelp": "Yelp"}
+SOURCE_LABELS = {"google": "Google", "yelp": "Yelp", "opentable": "OpenTable", "doordash": "DoorDash", "grubhub": "Grubhub"}
+# Only platforms whose reviews have stars feed scheduled checks. Uber Eats (no stars) can't change a snapshot or raise a
+# task, so a scheduled check never pays to pull it.
+RATED_EXTRA = ("opentable", "doordash", "grubhub")
+# Provider-level data costs about $0.05 per result, so scheduled checks refresh it at most this often.
+PROVIDER_REFRESH_DAYS = int(os.environ.get("PROVIDER_REFRESH_DAYS", "7"))
 
 _error_backoff: Dict[str, datetime] = {}
 
@@ -53,16 +59,50 @@ def month_start_iso(now: datetime) -> str:
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
 
 
+def _providers_for_snapshot(store, org: dict, location: dict, prev: Optional[dict], now: datetime, kind: str, notes: list):
+    """Provider-level numbers for this check: fetched when the company has the feature on and the location has doctor
+    pages, otherwise (or when the last fetch is recent) carried forward. Returns (providers or None, fetched_at)."""
+    links = location.get("provider_links") or []
+    if not org.get("provider_data_enabled") or not links:
+        return None, None
+    old = (prev or {}).get("providers")
+    old_at = (prev or {}).get("providers_checked_at")
+    if kind == "monitor" and old is not None and old_at:
+        try:
+            age = now - datetime.fromisoformat(str(old_at).replace("Z", "+00:00"))
+            if age < timedelta(days=PROVIDER_REFRESH_DAYS):
+                return old, old_at                    # fresh enough: costs nothing
+        except ValueError:
+            pass
+    try:
+        providers, rows_bought = zocdoc_client.fetch_providers(links, 3)
+    except Exception as exc:
+        notes.append(f"Provider data couldn't be refreshed ({getattr(exc, 'detail', exc)}); showing the last numbers.")
+        return old, old_at
+    if rows_bought:
+        wallet.settle(store, wallet.scope_for_org(org["id"]), 0.0, credit_rates.cost_breakdown({"zocdoc": rows_bought}),
+                      f"Provider data for {location['name']}")
+    return providers, now.isoformat()
+
+
 def usage_status(store, org: dict, now: Optional[datetime] = None) -> dict:
+    """This month's spending against the company's optional monthly spending limit, in dollars of credit.
+    No limit set (None) means nothing here ever pauses: the credit balance is then the only cap."""
     now = now or _utcnow()
-    used = store.usage_reviews(org["id"], month_start_iso(now))
-    budget = org.get("monthly_budget_reviews") or 0
+    try:
+        ls = wallet.limit_status(store, wallet.scope_for_org(org["id"]), org.get("monthly_budget_usd"), now)
+    except Exception as exc:
+        # The credit tables aren't there yet (the database update wasn't run). The company screen must still
+        # load, so report "nothing spent, nothing paused" instead of failing. The startup check explains why.
+        print(f"[credits] could not read spending for org {org.get('id')}; showing none: {exc}")
+        limit = org.get("monthly_budget_usd")
+        ls = {"spent_usd": 0.0, "limit_usd": float(limit) if limit else None, "remaining_usd": None, "over": False}
     return {
-        "used": used,
-        "budget": budget,
-        "remaining": max(0, budget - used),
-        "est_cost_usd": round(used / 1000 * COST_PER_1K_REVIEWS, 2),
-        "over": used >= budget,
+        "spent_usd": ls["spent_usd"],
+        "budget_usd": ls["limit_usd"],
+        "remaining_usd": ls["remaining_usd"],
+        "over": ls["over"],
+        "reviews_bought": store.usage_reviews(org["id"], month_start_iso(now)),
     }
 
 
@@ -113,11 +153,18 @@ def run_location(store, org: dict, location: dict, *, now: Optional[datetime] = 
     status = usage_status(store, org, now)
     if status["over"]:
         return {"status": "skipped", "reason": "budget",
-                "message": f"This month's review budget ({status['budget']:,}) has been used."}
+                "message": f"This month's spending limit (${status['budget_usd']:,.2f}) has been reached."}
+
+    # Companies have no plan allowance: every pull comes out of the company's credit balance.
+    try:
+        wallet.precheck(store, wallet.scope_for_org(org["id"]), 0.0, who="org")
+    except Exception as exc:
+        return {"status": "skipped", "reason": "credits", "message": getattr(exc, "detail", None) or str(exc)}
 
     try:
         by_source, cached_flags, notes, fresh = pipeline.pull_reviews(
-            location["google_query"], location.get("yelp_url"), months, want_yelp=bool(location.get("yelp_url"))
+            location["google_query"], location.get("yelp_url"), months, want_yelp=bool(location.get("yelp_url")),
+            others={src: location[f"{src}_url"] for src in RATED_EXTRA if location.get(f"{src}_url")},
         )
     except Exception as exc:                                  # one bad location must never stop the others
         detail = getattr(exc, "detail", None) or str(exc)
@@ -126,10 +173,14 @@ def run_location(store, org: dict, location: dict, *, now: Optional[datetime] = 
     bought = sum(fresh.values())
     if bought:
         store.add_usage(org["id"], location["id"], bought, kind)
+    wallet.settle(store, wallet.scope_for_org(org["id"]), 0.0, credit_rates.cost_breakdown(fresh),
+                  f"{'Scheduled check' if kind == 'monitor' else 'Check'} of {location['name']}")
 
     prev = store.latest_snapshot(location["id"])
+    providers, providers_at = _providers_for_snapshot(store, org, location, prev, now, kind, notes)
     snap = metrics.compute_snapshot(by_source, months=months, fresh=fresh, notes=notes,
-                                    prev_avg_rating=prev.get("avg_rating") if prev else None)
+                                    prev_avg_rating=prev.get("avg_rating") if prev else None,
+                                    industry=org.get("industry"), providers=providers, providers_checked_at=providers_at)
     snap["run_at"] = now.isoformat()
     saved = store.add_snapshot(location["id"], snap)
 
@@ -165,6 +216,10 @@ def run_due(store, now: Optional[datetime] = None, max_runs: Optional[int] = Non
     for org in store.list_orgs():
         if usage_status(store, org, now)["over"]:
             continue                                          # nothing to do until next month
+        try:
+            wallet.precheck(store, wallet.scope_for_org(org["id"]), 0.0, who="org")
+        except Exception:
+            continue                                          # out of credit: paused until the owner adds more
         for loc in store.list_locations(org["id"]):
             if not loc.get("is_active", True):
                 continue

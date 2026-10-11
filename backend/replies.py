@@ -18,6 +18,9 @@ from analysis.pii import redact_pii
 from auth import CurrentUser, get_current_user
 from corporate.permissions import can_act_on_location, can_see_location
 from corporate.store import get_store
+from analysis.industries import get_pack
+from credits import rates as credit_rates, wallet
+from supabase_client import get_profile
 
 router = APIRouter(prefix="/api/replies", tags=["replies"])
 
@@ -155,13 +158,14 @@ def check_draft(text: str) -> list:
     return [msg for pattern, msg in _RISKY if re.search(pattern, text, flags=re.I)]
 
 
-def draft_reply(business: str, source: str, rating: int, text: str, tone: str = "friendly") -> dict:
+def draft_reply(business: str, source: str, rating: int, text: str, tone: str = "friendly", allow_ai: bool = True) -> dict:
     """AI draft when an Anthropic key is configured, otherwise (or if the call fails) a safe template.
     Always returns warnings a human should read before posting."""
-    ai = _ai_draft(business, source, rating, text, tone)
+    ai = _ai_draft(business, source, rating, text, tone) if allow_ai else None
     if ai:
         return {"text": ai, "engine": "ai", "warnings": check_draft(ai)}
-    engine_note = "AI drafts aren't set up (or didn't respond), so this is a standard template. Edit it to fit."
+    engine_note = ("AI drafts aren't set up (or didn't respond), so this is a standard template. Edit it to fit."
+                   if allow_ai else "AI drafts are paused (you're out of credit or at your monthly spending limit), so this is a free standard template. Add credit or raise your limit for AI-written drafts.")
     draft = template_draft(rating, text, tone)
     return {"text": draft, "engine": "template", "warnings": check_draft(draft), "note": engine_note}
 
@@ -200,6 +204,21 @@ def _scope(current_user: CurrentUser, location_id: Optional[str]) -> dict:
             "member": None, "location": None, "can_save": True}
 
 
+def _require_replies_allowed(current_user: CurrentUser, ctx: dict) -> None:
+    """Healthcare accounts can't draft or record replies: answering a patient's review can disclose protected health
+    information, even just by confirming that the reviewer was a patient."""
+    if ctx["member"]:
+        industry = (get_store().get_org(ctx["member"]["org_id"]) or {}).get("industry")
+    else:
+        industry = (get_profile(current_user.id) or {}).get("industry")
+    if not get_pack(industry).get("replies_allowed", True):
+        raise HTTPException(
+            status_code=403,
+            detail="Replies are turned off for healthcare accounts: answering a patient's review can disclose protected "
+                   "health information, even by confirming that the person was a patient.",
+        )
+
+
 def _short_name(business: str) -> str:
     return (business or "").split(",")[0].strip() or "our business"
 
@@ -234,15 +253,38 @@ def list_replies(location_id: str = None, current_user: CurrentUser = Depends(ge
 @router.post("/draft")
 def draft(req: DraftRequest, current_user: CurrentUser = Depends(get_current_user)):
     ctx = _scope(current_user, req.location_id)
+    _require_replies_allowed(current_user, ctx)
     if not ctx["can_save"]:
         raise HTTPException(status_code=403, detail="Your role can't draft replies for this location.")
     _check_rate(current_user.id)
-    return draft_reply(_short_name(ctx["business"]), req.source, req.rating, req.text, req.tone)
+
+    # AI drafts cost a little each. Out of credit? Fall back to the free template instead of failing.
+    store = get_store()
+    if ctx["member"]:
+        scope, allowance, who = wallet.scope_for_org(ctx["member"]["org_id"]), 0.0, "org"
+    else:
+        scope, allowance, who = wallet.scope_for_user(current_user.id), wallet.allowance_for_tier(current_user.tier), "user"
+    if ctx["member"]:
+        limit = (store.get_org(ctx["member"]["org_id"]) or {}).get("monthly_budget_usd")
+    else:
+        limit = (get_profile(current_user.id) or {}).get("monthly_limit_usd")
+    allow_ai = True
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        try:
+            wallet.precheck(store, scope, allowance, who=who, tier=current_user.tier, limit_usd=limit)
+        except HTTPException:
+            allow_ai = False
+
+    result = draft_reply(_short_name(ctx["business"]), req.source, req.rating, req.text, req.tone, allow_ai=allow_ai)
+    if result["engine"] == "ai":
+        result["billing"] = wallet.settle(store, scope, allowance, credit_rates.cost_breakdown(drafts=1), "AI reply draft")
+    return result
 
 
 @router.put("")
 def save_reply(req: SaveReplyRequest, current_user: CurrentUser = Depends(get_current_user)):
     ctx = _scope(current_user, req.location_id)
+    _require_replies_allowed(current_user, ctx)
     if not ctx["can_save"]:
         raise HTTPException(status_code=403, detail="Your role can't save replies for this location.")
     store = get_store()

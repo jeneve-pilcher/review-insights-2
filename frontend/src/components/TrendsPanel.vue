@@ -38,7 +38,6 @@ function signed(n, digits = 2) {
   <section class="chart-section">
     <div class="title-row">
       <h3>🧠 Emerging Topic Trends</h3>
-      <span class="nlp-badge">🧠 NLP</span>
       <span v-if="isPreview" class="trend-preview-tag">Free preview</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
@@ -275,7 +274,7 @@ function signed(n, digits = 2) {
 }
 
 .trend-upgrade-link {
-  color: #ff4b4b;
+  color: var(--brand, #ff4b4b);
   font-weight: 700;
   text-decoration: none;
   margin-left: 6px;

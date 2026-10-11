@@ -1,7 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { orgApi } from '../api'
-import { ratingClass, signed, usagePct } from '../utils/orgFormat'
+import { fetchIndustries, orgApi } from '../api'
+import CreditsPanel from './CreditsPanel.vue'
+import IndustrySelect from './IndustrySelect.vue'
+import OrgIndustryOverview from './OrgIndustryOverview.vue'
+import { ratingClass, signed } from '../utils/orgFormat'
 
 const props = defineProps({
   info: { type: Object, required: true },
@@ -9,12 +12,34 @@ const props = defineProps({
 const emit = defineEmits(['open', 'changed'])
 
 const data = ref(null)
+const industries = ref([])
+const industry = ref(props.info.org.industry || 'casual_dining')
+const industryMessage = ref('')
+const savingIndustry = ref(false)
+
+onMounted(async () => {
+  try {
+    industries.value = (await fetchIndustries()).industries
+  } catch {
+    /* the picker stays hidden */
+  }
+})
+
+async function saveIndustry() {
+  savingIndustry.value = true
+  industryMessage.value = ''
+  try {
+    await orgApi.setIndustry(industry.value)
+    industryMessage.value = 'Saved. New analyses use this industry.'
+    emit('changed')
+  } catch (err) {
+    industryMessage.value = err?.response?.data?.detail || 'Could not save the industry.'
+  } finally {
+    savingIndustry.value = false
+  }
+}
 const loading = ref(true)
 const error = ref('')
-
-const budgetInput = ref(props.info.org.monthly_budget_reviews)
-const savingBudget = ref(false)
-const budgetMessage = ref('')
 
 async function load() {
   loading.value = true
@@ -30,63 +55,40 @@ async function load() {
 
 onMounted(load)
 
-const usage = computed(() => data.value?.usage ?? props.info.usage)
-const pct = computed(() => usagePct(usage.value))
-
-async function saveBudget() {
-  const n = Number(budgetInput.value)
-  if (!Number.isInteger(n) || n < 0) {
-    budgetMessage.value = 'Enter a whole number of reviews (0 or more).'
-    return
-  }
-  savingBudget.value = true
-  budgetMessage.value = ''
-  try {
-    await orgApi.setBudget(n)
-    budgetMessage.value = 'Saved.'
-    emit('changed')
-    await load()
-  } catch (err) {
-    budgetMessage.value = err?.response?.data?.detail || 'Could not save the budget.'
-  } finally {
-    savingBudget.value = false
-  }
-}
 </script>
 
 <template>
   <div>
+    <CreditsPanel scope="org" />
     <p v-if="loading" class="status">Loading the overview…</p>
     <p v-else-if="error" class="status error">{{ error }}</p>
 
     <template v-else-if="data">
+      <p class="oc-note" style="margin: 0 0 16px">
+        Locations refresh automatically every {{ info.limits.monitor_interval_hours }} hours using the last
+        {{ info.limits.monitor_months }} months of reviews, and repeat pulls inside 30 minutes are free. Set a monthly
+        spending limit in the credit box above.
+      </p>
+
       <div class="oc-card" style="margin-bottom: 16px">
-        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px">
-          <strong>Monthly review budget</strong>
-          <span class="oc-note" style="margin: 0">
-            {{ usage.used.toLocaleString() }} of {{ usage.budget.toLocaleString() }} reviews bought ·
-            about ${{ usage.est_cost_usd }} so far
-          </span>
-        </div>
-        <div class="oc-bar" :class="{ over: usage.over }" style="margin-top: 8px">
-          <div :style="{ width: pct + '%' }"></div>
-        </div>
-        <p v-if="usage.over" class="oc-note" style="color: #c0392b">
-          The budget has been used, so automatic checks are paused until next month or until it's raised.
+        <strong>Industry</strong>
+        <p class="oc-note" style="margin: 4px 0 8px">
+          Decides the themes, graphs and revenue defaults every location gets.
         </p>
-        <p class="oc-note">
-          Locations refresh automatically every {{ info.limits.monitor_interval_hours }} hours using the last
-          {{ info.limits.monitor_months }} months of reviews. Repeat pulls inside 30 minutes are free.
-        </p>
-        <div v-if="info.can.set_budget" class="analysis-form" style="margin-top: 8px">
-          <label class="field">
-            <span>Monthly budget (reviews)</span>
-            <input v-model.number="budgetInput" type="number" min="0" step="500" />
-          </label>
-          <button class="oc-btn" :disabled="savingBudget" @click="saveBudget">Save budget</button>
-          <span v-if="budgetMessage" class="oc-note">{{ budgetMessage }}</span>
+        <IndustrySelect v-if="industries.length" v-model="industry" :industries="industries" />
+        <div v-if="info.can.manage_locations" class="analysis-form" style="margin-top: 8px">
+          <button class="oc-btn" :disabled="savingIndustry" @click="saveIndustry">Save industry</button>
+          <span v-if="industryMessage" class="oc-note">{{ industryMessage }}</span>
         </div>
+        <p v-if="info.org.white_label && info.org.branding" class="oc-note" style="margin: 12px 0 0">
+          🎨 White-label branding is on for <strong>{{ info.org.branding.name }}</strong>
+          <span :style="{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', margin: '0 4px', background: info.org.branding.palette.primary, verticalAlign: 'middle' }"></span>
+          <span :style="{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '3px', background: info.org.branding.palette.accent, verticalAlign: 'middle' }"></span>.
+          Colors, logo and the SSO login are managed by your account administrator.
+        </p>
       </div>
+
+      <OrgIndustryOverview @open="emit('open', $event)" />
 
       <div class="oc-grid">
         <div class="oc-card oc-stat">

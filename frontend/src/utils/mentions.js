@@ -24,4 +24,32 @@ export const CATEGORY_LABELS = {
   review_site: 'Other review/listing sites',
   news_blog: 'News & blogs',
   web: 'Other web',
+  delivery: 'Delivery app',
+}
+
+// ---- Search depth and its (approximate) cost -------------------------------------------------
+// One pull = 2 searches (open web + Reddit) per page of depth; each page is about 10 results.
+// Outscraper's published rate is roughly half a cent per search after a small free allowance;
+// check your own plan, this is only an estimate.
+export const SEARCH_PRICE_USD = 0.005
+export const SEARCHES_PER_PAGE = 2
+export const MAX_PAGES = 5
+
+export function clampPages(value) {
+  if (value === null || value === undefined || value === '') return 2 // not provided: use the default depth
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n)) return 2
+  return Math.max(1, Math.min(MAX_PAGES, n))
+}
+
+export function estimateSearches(pages) {
+  return SEARCHES_PER_PAGE * clampPages(pages)
+}
+
+export function estimateCostUsd(pages) {
+  return Math.round(estimateSearches(pages) * SEARCH_PRICE_USD * 1000) / 1000
+}
+
+export function formatCost(usd) {
+  return `$${usd.toFixed(3)}`
 }

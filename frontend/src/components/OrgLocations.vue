@@ -1,11 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { orgApi } from '../api'
+import { linksFromText, linksToText } from '../utils/providers'
 import { csvPreview, ratingClass, timeAgo } from '../utils/orgFormat'
 
 const props = defineProps({
   info: { type: Object, required: true },
 })
+// Doctor pages are an opt-in feature (an administrator turns it on) for healthcare industries.
+const providersOn = computed(() => Boolean(props.info.org.provider_data_enabled && props.info.org.pack?.provider_level))
 const emit = defineEmits(['open', 'changed'])
 
 const rows = ref([])
@@ -13,7 +16,7 @@ const loading = ref(true)
 const error = ref('')
 const message = ref('')
 
-const blank = () => ({ name: '', google_query: '', brand: '', region: '', yelp_url: '', manager_email: '' })
+const blank = () => ({ name: '', google_query: '', brand: '', region: '', yelp_url: '', opentable_url: '', doordash_url: '', ubereats_url: '', grubhub_url: '', manager_email: '', provider_links_text: '' })
 const form = ref(blank())
 const editingId = ref(null)
 const saving = ref(false)
@@ -38,6 +41,8 @@ async function submit() {
   message.value = ''
   try {
     const body = Object.fromEntries(Object.entries(form.value).map(([k, v]) => [k, v.trim()]))
+    delete body.provider_links_text
+    if (providersOn.value) body.provider_links = linksFromText(form.value.provider_links_text)
     if (editingId.value) await orgApi.updateLocation(editingId.value, body)
     else await orgApi.addLocation(body)
     message.value = editingId.value ? 'Location updated.' : 'Location added. Its first check runs within about half an hour, or press Run now.'
@@ -60,6 +65,11 @@ function edit(row) {
     brand: row.brand || '',
     region: row.region || '',
     yelp_url: row.yelp_url || '',
+    opentable_url: row.opentable_url || '',
+    doordash_url: row.doordash_url || '',
+    ubereats_url: row.ubereats_url || '',
+    grubhub_url: row.grubhub_url || '',
+    provider_links_text: linksToText(row.provider_links),
     manager_email: row.manager_email || '',
   }
   message.value = ''
@@ -147,6 +157,15 @@ async function importCsv() {
         <label class="field"><span>Brand</span><input v-model="form.brand" type="text" /></label>
         <label class="field"><span>Region</span><input v-model="form.region" type="text" /></label>
         <label class="field"><span>Yelp page (optional)</span><input v-model="form.yelp_url" type="text" placeholder="https://www.yelp.com/biz/..." /></label>
+        <label class="field"><span>OpenTable page (optional)</span><input v-model="form.opentable_url" type="text" placeholder="https://www.opentable.com/r/..." /></label>
+        <label class="field"><span>DoorDash page (optional)</span><input v-model="form.doordash_url" type="text" placeholder="https://www.doordash.com/store/...-123456/" /></label>
+        <label class="field"><span>Uber Eats page (optional)</span><input v-model="form.ubereats_url" type="text" placeholder="https://www.ubereats.com/store/.../abc123" /></label>
+        <label class="field"><span>Grubhub page (optional)</span><input v-model="form.grubhub_url" type="text" placeholder="https://www.grubhub.com/restaurant/.../123456/" /></label>
+        <label v-if="providersOn" class="field" style="grid-column: 1 / -1">
+          <span>Zocdoc doctor pages (one link per line, up to 10)</span>
+          <textarea v-model="form.provider_links_text" rows="3" placeholder="https://www.zocdoc.com/doctor/jane-doe-md-12345"></textarea>
+          <small class="oc-note">Provider-level numbers for these doctors appear on the location's page. Each refresh is billed per result, so scheduled checks refresh them at most weekly.</small>
+        </label>
         <label class="field"><span>Manager email</span><input v-model="form.manager_email" type="text" placeholder="gm@company.com" /></label>
         <button class="oc-btn" :disabled="saving" @click="submit">{{ editingId ? 'Save changes' : 'Add location' }}</button>
         <button v-if="editingId" class="oc-btn" @click="cancelEdit">Cancel</button>
@@ -160,7 +179,7 @@ async function importCsv() {
         <summary><strong>Import many locations from a spreadsheet (CSV)</strong></summary>
         <p class="oc-note">
           First row = headers: <code>name, google_query</code> required; optional
-          <code>brand, region, yelp_url, manager_email</code>. (Also understood: address, yelp, manager.)
+          <code>brand, region, yelp_url, opentable_url, doordash_url, ubereats_url, grubhub_url, manager_email</code>. (Also understood: address, yelp, opentable, doordash, ubereats, grubhub, manager.)
           Export your spreadsheet as CSV, then choose the file or paste it below.
         </p>
         <input type="file" accept=".csv,text/csv" @change="onFile" />
@@ -198,7 +217,14 @@ async function importCsv() {
               <button class="oc-link" @click="emit('open', r.id)"><strong>{{ r.name }}</strong></button>
               <div class="oc-note" style="margin: 0">
                 {{ [r.brand, r.region].filter(Boolean).join(' · ') }}
+                <span v-if="r.top_theme" class="oc-chip" :title="`${r.top_theme.label} is ${r.top_theme.flag} lately`">
+                  {{ r.top_theme.flag === 'rising' ? '↑' : '↓' }} {{ r.top_theme.label }}
+                </span>
                 <span v-if="r.yelp_url" class="oc-chip">+ Yelp</span>
+                <span v-if="r.opentable_url" class="oc-chip">+ OpenTable</span>
+                <span v-if="r.doordash_url" class="oc-chip">+ DoorDash</span>
+                <span v-if="r.ubereats_url" class="oc-chip">+ Uber Eats</span>
+                <span v-if="r.grubhub_url" class="oc-chip">+ Grubhub</span>
                 <span v-if="!r.is_active" class="oc-chip warn">paused</span>
               </div>
             </td>
