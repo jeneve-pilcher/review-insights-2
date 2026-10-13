@@ -27,6 +27,7 @@ export function estimateRun(opts, info) {
   const runFees = ['doordash', 'ubereats'].filter((s) => sources.includes(s)).length
   if (runFees) add('Apify run fees', runFees * (r.apify_run_start ?? 0))
   if (competitors > 0) add(`Competitor reviews (${competitors})`, competitors * c.google * r.google_review)
+  add('AI summary', r.ai_summary ?? 0)
   if (mentions) add('Web searches', c.searches_per_page * Math.max(1, Math.min(5, mentionPages)) * r.web_search)
 
   return { upper: lines.reduce((s, l) => s + l.usd, 0), lines }

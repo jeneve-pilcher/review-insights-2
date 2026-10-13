@@ -9,6 +9,7 @@ import {
   Title,
   Tooltip,
 } from 'chart.js'
+import ByWeekBadge from './ByWeekBadge.vue'
 import DataBasis from './DataBasis.vue'
 import NlpCallout from './NlpCallout.vue'
 import { signed, weeklyReadItems } from '../utils/nlpInsights'
@@ -73,6 +74,7 @@ const chartOptions = computed(() => ({
     },
   },
   scales: {
+    x: { title: { display: true, text: 'Week starting (Monday)' } },
     y: { min: -1, max: 1, title: { display: true, text: 'Sentiment (text tone)' } },
   },
 }))
@@ -81,11 +83,11 @@ const chartOptions = computed(() => ({
 <template>
   <section class="chart-section">
     <div class="title-row">
-      <h3>🗣️ Weekly Themes &amp; Sentiment</h3>
+      <h3>🗣️ Weekly Themes &amp; Sentiment<ByWeekBadge /></h3>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">
-      Average tone of the written review text each week (separate from star ratings - this can
+      Average tone of the written review text in each calendar week (separate from star ratings - this can
       shift before ratings do), plus the words that came up most. Star-only reviews have no
       words to read, so weeks with none show as gaps.
     </p>

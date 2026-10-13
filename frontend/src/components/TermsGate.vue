@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import { acceptTerms } from '../api'
 import { TERMS_VERSION } from '../legal/terms'
+import { PRIVACY_DATE } from '../legal/privacy'
+import PrivacyPolicy from './PrivacyPolicy.vue'
 import TermsOfService from './TermsOfService.vue'
 
 const props = defineProps({
@@ -29,21 +31,23 @@ async function accept() {
 </script>
 
 <template>
-  <div class="tg-backdrop" role="dialog" aria-modal="true" aria-label="Terms of Service">
+  <div class="tg-backdrop" role="dialog" aria-modal="true" aria-label="Terms of Service and Privacy Policy">
     <div class="tg-dialog">
       <div class="tg-body">
         <p v-if="mode === 'accept'" class="tg-intro">
-          Please read and agree to our Terms of Service to continue. The section
+          Please read and agree to our Terms of Service and Privacy Policy to continue. The section
           <strong>“Before you rely on it”</strong> explains what the service can and can't be relied on for.
         </p>
         <TermsOfService />
+        <hr class="tg-rule" />
+        <PrivacyPolicy />
       </div>
 
       <div class="tg-footer">
         <template v-if="mode === 'accept'">
           <label class="source-check">
             <input v-model="agreed" type="checkbox" />
-            I have read and agree to these Terms of Service (version {{ TERMS_VERSION }}).
+            I have read and agree to these Terms of Service (version {{ TERMS_VERSION }}) and the Privacy Policy (updated {{ PRIVACY_DATE }}).
           </label>
           <div class="tg-buttons">
             <button class="run-btn" style="width: auto; padding: 9px 22px" :disabled="!agreed || saving" @click="accept">
@@ -60,6 +64,12 @@ async function accept() {
 </template>
 
 <style>
+.tg-rule {
+  border: 0;
+  border-top: 1px solid #e7e5e4;
+  margin: 28px 0;
+}
+
 .tg-backdrop {
   position: fixed;
   inset: 0;

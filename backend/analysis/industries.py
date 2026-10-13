@@ -63,8 +63,26 @@ PACKS: Dict[str, dict] = {
             _t("clean", "Cleanliness", ["clean", "dirty", "filthy", "spotless"]),
         ],
     },
-    # Announced, not built: shown disabled so people can see what's coming.
-    "retail": {"label": "Retail", "group": "Retail", "available": False, "description": "Stores: stock, checkout lines, returns and staff help.", "themes": [], "default_aov": 60, "subratings": False, "integrations": {"recommended": [], "optional": [], "hidden": []}, "kpis": []},
+    # Retail: one type covering stores of any kind (clothing, home, grocery, electronics, and so on).
+    "retail": {
+        "label": "Retail", "group": "Retail", "available": True, "default_aov": 60,
+        "description": "Stores of any kind: stock, checkout lines, returns, prices and staff help.",
+        "subratings": False,
+        # Yelp lists most stores. The delivery-app links work on any store page those apps list (untested outside restaurants).
+        "integrations": {"recommended": ["yelp"], "optional": ["doordash", "ubereats", "grubhub"], "hidden": ["opentable"]},
+        "kpis": [{"id": "stock", "label": "Out of stock", "kind": "theme", "key": "stock"}, {"id": "checkout", "label": "Checkout lines", "kind": "theme", "key": "checkout"}, {"id": "returns", "label": "Returns & refunds", "kind": "theme", "key": "returns"}, {"id": "price", "label": "Price & value", "kind": "theme", "key": "price"}],
+        "themes": [
+            _t("stock", "Stock & availability", ["out of stock", "sold out", "no stock", "empty shelves", "didn't have", "didn't carry", "selection", "restock"]),
+            _t("checkout", "Checkout & lines", ["checkout", "check out", "register", "cashier", "line", "long line", "self checkout", "self-checkout", "queue"]),
+            _t("returns", "Returns & refunds", ["return", "returns", "refund", "exchange", "receipt", "store credit", "return policy", "money back"]),
+            _t("price", "Price & value", ["price", "prices", "expensive", "cheap", "overpriced", "sale", "discount", "coupon", "worth"]),
+            _t("staff", "Staff help", ["staff", "employee", "associate", "helpful", "unhelpful", "rude", "friendly", "manager", "ignored"]),
+            _t("quality", "Product quality", ["quality", "poor quality", "broken", "damaged", "defective", "fake", "expired", "cheaply made"]),
+            _t("store", "Store layout & cleanliness", ["clean", "dirty", "messy", "cluttered", "organized", "disorganized", "layout", "aisle", "fitting room"]),
+            _t("online", "Online orders & pickup", ["online order", "pickup", "pick up", "curbside", "delivery", "shipping", "ordered online", "in-store pickup"]),
+        ],
+        "replies_allowed": True,
+    },
     # (Healthcare segments follow below, added after the dict is built.)
 }
 
@@ -92,6 +110,8 @@ def catalog() -> List[dict]:
     return [{"id": k, "label": v["label"], "group": v["group"], "available": v["available"],
              "description": v["description"], "default_aov": v["default_aov"],
              "themes": [t["label"] for t in v["themes"]], "integrations": v["integrations"],
+             # The first few words and phrases each theme looks for, so the front page can show real examples.
+             "theme_details": [{"label": t["label"], "examples": t["keywords"][:5]} for t in v["themes"]],
              "replies_allowed": v.get("replies_allowed", True), "provider_level": v.get("provider_level", False)} for k, v in PACKS.items()]
 
 

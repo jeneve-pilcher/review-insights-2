@@ -7,7 +7,7 @@ export const SOURCE_NAMES = { yelp: 'Yelp', opentable: 'OpenTable', doordash: 'D
 
 export const EVERY_INDUSTRY = [
   "Sentiment drift: weekly review volume and tone, with early-warning flags",
-  "Revenue signals in plain English, with the estimated revenue at stake (Pro)",
+  "Revenue signals in plain English: what is worth acting on first (Pro)",
   "Your industry's trends, flagged only when there is enough evidence",
   "Negative reviews become tasks you can assign and track (Pro)",
   "Many locations? A company view with benchmarks, tasks and a team (Pro and Enterprise)"
@@ -53,7 +53,89 @@ export const INDUSTRIES = [
       "Draft replies to reviews, which you read and post yourself."
     ],
     "replies_allowed": true,
-    "provider_level": false
+    "provider_level": false,
+    "themeDetails": [
+      {
+        "label": "Wait times",
+        "examples": [
+          "wait",
+          "waited",
+          "waiting",
+          "line",
+          "long time"
+        ]
+      },
+      {
+        "label": "Order accuracy",
+        "examples": [
+          "wrong order",
+          "wrong",
+          "missing",
+          "forgot",
+          "mistake"
+        ]
+      },
+      {
+        "label": "Portions & value",
+        "examples": [
+          "portion",
+          "portions",
+          "small",
+          "tiny",
+          "overpriced"
+        ]
+      },
+      {
+        "label": "Staff friendliness",
+        "examples": [
+          "friendly",
+          "rude",
+          "attitude",
+          "welcoming",
+          "unfriendly"
+        ]
+      },
+      {
+        "label": "Families & kids",
+        "examples": [
+          "kids",
+          "children",
+          "family",
+          "high chair",
+          "kid-friendly"
+        ]
+      },
+      {
+        "label": "Cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "filthy",
+          "sticky",
+          "bathroom"
+        ]
+      },
+      {
+        "label": "Noise & atmosphere",
+        "examples": [
+          "loud",
+          "noisy",
+          "noise",
+          "atmosphere",
+          "vibe"
+        ]
+      },
+      {
+        "label": "Takeout & delivery",
+        "examples": [
+          "delivery",
+          "takeout",
+          "take out",
+          "to-go",
+          "to go"
+        ]
+      }
+    ]
   },
   {
     "id": "fine_dining",
@@ -94,7 +176,89 @@ export const INDUSTRIES = [
       "Draft replies to reviews, which you read and post yourself."
     ],
     "replies_allowed": true,
-    "provider_level": false
+    "provider_level": false,
+    "themeDetails": [
+      {
+        "label": "Pacing between courses",
+        "examples": [
+          "pacing",
+          "paced",
+          "rushed",
+          "between courses",
+          "took forever"
+        ]
+      },
+      {
+        "label": "Service & attentiveness",
+        "examples": [
+          "attentive",
+          "inattentive",
+          "sommelier",
+          "server",
+          "waiter"
+        ]
+      },
+      {
+        "label": "Ambiance & noise",
+        "examples": [
+          "ambiance",
+          "ambience",
+          "atmosphere",
+          "decor",
+          "romantic"
+        ]
+      },
+      {
+        "label": "Value for price",
+        "examples": [
+          "overpriced",
+          "not worth",
+          "worth it",
+          "worth the",
+          "expensive"
+        ]
+      },
+      {
+        "label": "Special occasions",
+        "examples": [
+          "anniversary",
+          "birthday",
+          "special occasion",
+          "celebrate",
+          "celebration"
+        ]
+      },
+      {
+        "label": "Food & tasting menu",
+        "examples": [
+          "tasting menu",
+          "dish",
+          "dishes",
+          "flavor",
+          "flavors"
+        ]
+      },
+      {
+        "label": "Wine & drinks",
+        "examples": [
+          "wine",
+          "pairing",
+          "pairings",
+          "cocktail",
+          "cocktails"
+        ]
+      },
+      {
+        "label": "Reservations & seating",
+        "examples": [
+          "reservation",
+          "reserved",
+          "booked",
+          "booking",
+          "seated"
+        ]
+      }
+    ]
   },
   {
     "id": "urgent_care",
@@ -137,7 +301,99 @@ export const INDUSTRIES = [
       "Replies are off for healthcare by design: a public reply can disclose protected health information."
     ],
     "replies_allowed": false,
-    "provider_level": true
+    "provider_level": true,
+    "themeDetails": [
+      {
+        "label": "Wait times",
+        "examples": [
+          "wait",
+          "waited",
+          "waiting",
+          "hours",
+          "an hour"
+        ]
+      },
+      {
+        "label": "Quoted vs actual wait",
+        "examples": [
+          "quoted",
+          "estimated wait",
+          "online check-in",
+          "online check in",
+          "check-in time"
+        ]
+      },
+      {
+        "label": "Front desk & staff",
+        "examples": [
+          "front desk",
+          "receptionist",
+          "reception",
+          "staff",
+          "rude"
+        ]
+      },
+      {
+        "label": "Provider communication",
+        "examples": [
+          "doctor",
+          "provider",
+          "nurse",
+          "practitioner",
+          "physician assistant"
+        ]
+      },
+      {
+        "label": "Billing & insurance",
+        "examples": [
+          "bill",
+          "billing",
+          "insurance",
+          "copay",
+          "co-pay"
+        ]
+      },
+      {
+        "label": "Cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "filthy",
+          "bathroom",
+          "restroom"
+        ]
+      },
+      {
+        "label": "Children",
+        "examples": [
+          "kids",
+          "child",
+          "children",
+          "pediatric",
+          "son"
+        ]
+      },
+      {
+        "label": "Testing & imaging",
+        "examples": [
+          "x-ray",
+          "xray",
+          "lab",
+          "labs",
+          "test"
+        ]
+      },
+      {
+        "label": "Hours & convenience",
+        "examples": [
+          "open late",
+          "weekend",
+          "weekends",
+          "parking",
+          "location"
+        ]
+      }
+    ]
   },
   {
     "id": "dental",
@@ -180,7 +436,99 @@ export const INDUSTRIES = [
       "Replies are off for healthcare by design: a public reply can disclose protected health information."
     ],
     "replies_allowed": false,
-    "provider_level": true
+    "provider_level": true,
+    "themeDetails": [
+      {
+        "label": "Scheduling & access",
+        "examples": [
+          "appointment",
+          "scheduling",
+          "schedule",
+          "rescheduled",
+          "cancelled"
+        ]
+      },
+      {
+        "label": "Wait & punctuality",
+        "examples": [
+          "wait",
+          "waited",
+          "waiting room",
+          "on time",
+          "late"
+        ]
+      },
+      {
+        "label": "Comfort & gentleness",
+        "examples": [
+          "gentle",
+          "painless",
+          "numb",
+          "numbing",
+          "hurt"
+        ]
+      },
+      {
+        "label": "Hygienists & staff",
+        "examples": [
+          "hygienist",
+          "assistant",
+          "front desk",
+          "receptionist",
+          "staff"
+        ]
+      },
+      {
+        "label": "Billing & insurance",
+        "examples": [
+          "bill",
+          "billing",
+          "insurance",
+          "charged",
+          "cost"
+        ]
+      },
+      {
+        "label": "Explaining treatment",
+        "examples": [
+          "explained",
+          "explain",
+          "options",
+          "treatment plan",
+          "unnecessary"
+        ]
+      },
+      {
+        "label": "Cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "sterile",
+          "spotless",
+          "modern"
+        ]
+      },
+      {
+        "label": "Children",
+        "examples": [
+          "kids",
+          "child",
+          "children",
+          "pediatric",
+          "son"
+        ]
+      },
+      {
+        "label": "Emergency & same-day",
+        "examples": [
+          "emergency",
+          "same day",
+          "same-day",
+          "urgent",
+          "toothache"
+        ]
+      }
+    ]
   },
   {
     "id": "primary_care",
@@ -222,7 +570,89 @@ export const INDUSTRIES = [
       "Replies are off for healthcare by design: a public reply can disclose protected health information."
     ],
     "replies_allowed": false,
-    "provider_level": true
+    "provider_level": true,
+    "themeDetails": [
+      {
+        "label": "Getting appointments",
+        "examples": [
+          "appointment",
+          "scheduling",
+          "weeks",
+          "booked",
+          "new patient"
+        ]
+      },
+      {
+        "label": "Wait in the office",
+        "examples": [
+          "wait",
+          "waited",
+          "waiting room",
+          "running late",
+          "behind schedule"
+        ]
+      },
+      {
+        "label": "Bedside manner",
+        "examples": [
+          "listened",
+          "dismissive",
+          "rushed",
+          "compassionate",
+          "caring"
+        ]
+      },
+      {
+        "label": "Follow-up & results",
+        "examples": [
+          "follow up",
+          "follow-up",
+          "referral",
+          "referred",
+          "test results"
+        ]
+      },
+      {
+        "label": "Phone & portal",
+        "examples": [
+          "portal",
+          "phone",
+          "voicemail",
+          "hold",
+          "message"
+        ]
+      },
+      {
+        "label": "Billing & insurance",
+        "examples": [
+          "bill",
+          "billing",
+          "insurance",
+          "copay",
+          "charged"
+        ]
+      },
+      {
+        "label": "Front desk & nurses",
+        "examples": [
+          "front desk",
+          "receptionist",
+          "nurse",
+          "medical assistant",
+          "staff"
+        ]
+      },
+      {
+        "label": "Continuity of care",
+        "examples": [
+          "different doctor",
+          "turnover",
+          "left the practice",
+          "new doctor",
+          "seen by"
+        ]
+      }
+    ]
   },
   {
     "id": "general",
@@ -259,25 +689,181 @@ export const INDUSTRIES = [
       "Draft replies to reviews, which you read and post yourself."
     ],
     "replies_allowed": true,
-    "provider_level": false
+    "provider_level": false,
+    "themeDetails": [
+      {
+        "label": "Service",
+        "examples": [
+          "service",
+          "staff",
+          "rude",
+          "friendly",
+          "helpful"
+        ]
+      },
+      {
+        "label": "Quality",
+        "examples": [
+          "quality",
+          "poor quality",
+          "excellent",
+          "great quality",
+          "broken"
+        ]
+      },
+      {
+        "label": "Price & value",
+        "examples": [
+          "price",
+          "expensive",
+          "cheap",
+          "overpriced",
+          "value"
+        ]
+      },
+      {
+        "label": "Wait times",
+        "examples": [
+          "wait",
+          "waited",
+          "waiting",
+          "line",
+          "slow"
+        ]
+      },
+      {
+        "label": "Cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "filthy",
+          "spotless"
+        ]
+      }
+    ]
   },
   {
     "id": "retail",
     "label": "Retail",
     "group": "Retail",
-    "available": false,
-    "blurb": "Stores",
-    "pitch": "Stock, checkout lines, returns and staff help.",
-    "themes": [],
-    "graphs": [],
+    "available": true,
+    "blurb": "Any store",
+    "pitch": "Stock, checkout lines, returns, prices and staff help.",
+    "themes": [
+      "Stock & availability",
+      "Checkout & lines",
+      "Returns & refunds",
+      "Price & value",
+      "Staff help",
+      "Product quality",
+      "Store layout & cleanliness",
+      "Online orders & pickup"
+    ],
+    "graphs": [
+      "Your themes week by week: stock, checkout lines, returns, price, staff help",
+      "Google and Yelp side by side",
+      "Negative reviews turned into tasks, tagged with what they're about"
+    ],
     "integrations": {
-      "recommended": [],
-      "optional": [],
-      "hidden": []
+      "recommended": [
+        "yelp"
+      ],
+      "optional": [
+        "doordash",
+        "ubereats",
+        "grubhub"
+      ],
+      "hidden": [
+        "opentable"
+      ]
     },
-    "notes": [],
+    "notes": [
+      "Draft replies to reviews, which you read and post yourself."
+    ],
     "replies_allowed": true,
-    "provider_level": false
+    "provider_level": false,
+    "themeDetails": [
+      {
+        "label": "Stock & availability",
+        "examples": [
+          "out of stock",
+          "sold out",
+          "no stock",
+          "empty shelves",
+          "didn't have"
+        ]
+      },
+      {
+        "label": "Checkout & lines",
+        "examples": [
+          "checkout",
+          "check out",
+          "register",
+          "cashier",
+          "line"
+        ]
+      },
+      {
+        "label": "Returns & refunds",
+        "examples": [
+          "return",
+          "returns",
+          "refund",
+          "exchange",
+          "receipt"
+        ]
+      },
+      {
+        "label": "Price & value",
+        "examples": [
+          "price",
+          "prices",
+          "expensive",
+          "cheap",
+          "overpriced"
+        ]
+      },
+      {
+        "label": "Staff help",
+        "examples": [
+          "staff",
+          "employee",
+          "associate",
+          "helpful",
+          "unhelpful"
+        ]
+      },
+      {
+        "label": "Product quality",
+        "examples": [
+          "quality",
+          "poor quality",
+          "broken",
+          "damaged",
+          "defective"
+        ]
+      },
+      {
+        "label": "Store layout & cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "messy",
+          "cluttered",
+          "organized"
+        ]
+      },
+      {
+        "label": "Online orders & pickup",
+        "examples": [
+          "online order",
+          "pickup",
+          "pick up",
+          "curbside",
+          "delivery"
+        ]
+      }
+    ]
   }
 ]
 
@@ -297,4 +883,36 @@ export function groupedIndustries() {
 export function sourceChips(industry) {
   if (!industry?.available) return []
   return ['Google', ...(industry.integrations?.recommended ?? []).map((id) => SOURCE_NAMES[id] ?? id)]
+}
+
+// What you'll find from each data source, shown when its tag is hovered. Plain descriptions of what is actually built.
+export const SOURCE_TRENDS = {
+  Google: 'Rating and tone over time, plus when complaints cluster by day and hour. Always included.',
+  Yelp: 'Star ratings and tone over time, side by side with Google.',
+  OpenTable: 'Food, service, ambience and value scores over time, so you can see which one is slipping.',
+  DoorDash: 'Delivery star ratings and tone over time, next to your other platforms.',
+  'Uber Eats': "Tone over time from written reviews. They have no stars, so they're never counted in your ratings.",
+  Grubhub: 'Delivery star ratings and tone over time, next to your other platforms.',
+}
+
+export function sourceHover(name) {
+  return SOURCE_TRENDS[name] ?? ''
+}
+
+// What a theme tag finds: the real words it looks for and the trend it reports.
+export function themeHover(detail) {
+  if (!detail || !detail.examples?.length) return ''
+  const words = detail.examples.map((w) => `\u201c${w}\u201d`).join(', ')
+  return `Trends we find: how often ${words} come up in written reviews, week by week. We flag it when it rises or falls over the last four weeks, and show how reviews that mention it rate compared with the rest, once there are enough reviews to say so.`
+}
+
+// What an industry's tag finds: its main themes, tracked the same way.
+export function industryHover(industry) {
+  if (!industry?.available || !industry.themes?.length) return ''
+  const top = industry.themes.slice(0, 4).join(', ')
+  return `Trends you'll find: ${top}${industry.themes.length > 4 ? ' and more' : ''}. Each is tracked week by week and flagged when it rises or falls over the last four weeks.`
+}
+
+export function themeDetail(industry, label) {
+  return industry?.themeDetails?.find((d) => d.label === label) ?? null
 }

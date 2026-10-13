@@ -9,6 +9,9 @@ import OrgConsole from '../components/OrgConsole.vue'
 import PlatformComparison from '../components/PlatformComparison.vue'
 import CreditsPanel from '../components/CreditsPanel.vue'
 import IndustryPanel from '../components/IndustryPanel.vue'
+import AiSummary from '../components/AiSummary.vue'
+import { FEATURES } from '../content/features'
+import IndustryPrompt from '../components/IndustryPrompt.vue'
 import ReviewReplies from '../components/ReviewReplies.vue'
 import RevenueSignals from '../components/RevenueSignals.vue'
 import SentimentDriftChart from '../components/SentimentDriftChart.vue'
@@ -18,6 +21,7 @@ import TrendsPanel from '../components/TrendsPanel.vue'
 import UnifiedAnalysisForm from '../components/UnifiedAnalysisForm.vue'
 import WaitTimeHeatmap from '../components/WaitTimeHeatmap.vue'
 import WeeklyThemesChart from '../components/WeeklyThemesChart.vue'
+import ToneVsStarsChart from '../components/ToneVsStarsChart.vue'
 import YourPagesModal from '../components/YourPagesModal.vue'
 import { createCheckoutSession, createPortalSession, deleteAccount, fetchIndustries, fetchMe } from '../api'
 import { applyBranding, brandTitle, forgetBrand, rememberBrand, safeLogo } from '../utils/theme'
@@ -100,6 +104,7 @@ function handleLinksSaved(links) {
 // Industry packs and white-label branding.
 const industries = ref([])
 const industryResult = ref(null)
+const aiSummaryResult = ref(null)
 const industryDefaultAov = computed(() => industries.value.find((i) => i.id === (me.value?.industry || 'casual_dining'))?.default_aov ?? 35)
 const repliesOff = computed(() => industries.value.find((i) => i.id === (me.value?.industry || 'casual_dining'))?.replies_allowed === false)
 const brandLogo = computed(() => safeLogo(me.value?.branding))
@@ -184,6 +189,7 @@ function handleUnifiedResult({ data }) {
   reviewList.value = data.review_list
   mentionsResult.value = data.mentions
   industryResult.value = data.industry
+  aiSummaryResult.value = data.ai_summary
   view.value = data.meta.view
   waitTimePreview.value = data.wait_time_preview
   negativePreview.value = data.negative_preview
@@ -232,6 +238,7 @@ function handleUnifiedResult({ data }) {
       <BusinessSetup v-else-if="!me.business_location" :can-add-links="isPaid()" :current="me" @set="handleSetupDone" />
 
       <template v-else>
+      <IndustryPrompt v-if="!me.industry_set" :current="me" @saved="handleLinksSaved" />
       <div class="nlp-intro">
         <span>
           <strong>Every panel reads the words in your reviews, not just the stars.</strong>
@@ -311,13 +318,15 @@ function handleUnifiedResult({ data }) {
         technique="Lists every review in your window and drafts a reply to any of them (AI-written when set up, otherwise a safe template) that you edit, copy and post, with a record of what's been answered."
       />
 
+      <AiSummary v-if="FEATURES.aiSummaries" :result="aiSummaryResult" />
       <RevenueSignals :result="signalsResult" :meta="meta" />
       <PlatformComparison v-if="isPaid() && (platformsResult?.platforms?.length ?? 0) > 1" :result="platformsResult" />
       <SentimentDriftChart :result="sentimentResult" :meta="meta" />
       <WeeklyThemesChart :weekly="sentimentResult?.weekly ?? []" :meta="meta" />
+      <ToneVsStarsChart :weekly="sentimentResult?.weekly ?? []" :meta="meta" />
       <TrendsPanel :result="trendsResult" :meta="meta" />
       <IndustryPanel :result="industryResult" :meta="meta" :locked="!isPaid()" />
-      <MentionsPanel v-if="isPaid()" :result="mentionsResult" />
+      <MentionsPanel v-if="FEATURES.internetMentions && isPaid()" :result="mentionsResult" />
 
       <template v-if="isPaid()">
         <WaitTimeHeatmap :result="waitTimeResult" :meta="meta" />
@@ -358,6 +367,8 @@ function handleUnifiedResult({ data }) {
     <footer class="legal-footer">
       <button class="oc-link" @click="showTerms = true">Terms of Service</button>
       <span> · version {{ TERMS_VERSION }}</span>
+      <span> · </span>
+      <a href="/#privacy" class="oc-link">Privacy Policy</a>
     </footer>
   </div>
 </template>

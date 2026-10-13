@@ -1,6 +1,13 @@
 // Default web-search words for a business: name + city, without the street address.
 // (Mirrors the backend rule so the box can show what will be searched.)
 export function defaultMentionTerms(query) {
+  const q = (query ?? '').trim()
+  if (/^https?:\/\//i.test(q)) {
+    // A Google Maps link: the business name is in the link. No readable name means nothing to search for.
+    const m = q.match(/\/maps\/place\/([^/@?]+)/)
+    if (!m) return ''
+    try { return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim() } catch { return m[1].replace(/\+/g, ' ') }
+  }
   const parts = (query ?? '').split(',').map((p) => p.trim()).filter(Boolean)
   if (parts.length > 2) return `${parts[0]} ${parts[parts.length - 1]}`
   return parts.join(' ')

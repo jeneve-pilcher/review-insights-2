@@ -8,6 +8,8 @@ from analysis.chart1_sentiment_drift import build_sentiment_drift
 from analysis.chart2_wait_time_heatmap import build_wait_summary, build_wait_time_heatmap
 from analysis.chart3_competitor_share import build_competitor_share
 from analysis.insights import build_revenue_signals, trim_signals_for_preview
+import features
+from analysis.ai_summary import build_ai_summary, enabled_for as ai_summary_enabled_for
 from analysis.mentions import build_mentions, mention_signals
 from analysis.mentions_client import effective_pages, fetch_mentions_with_meta, searches_for
 from analysis.negative_reviews import build_negative_reviews, negative_summary
@@ -96,12 +98,18 @@ def pull_reviews_ext(location: str, yelp_url: Optional[str], months: int, want_y
     return reviews_by_source, cached_flags, notes, fresh, unrated
 
 
-def pull_mentions(terms: str, months: int, pages: Optional[int] = None) -> dict:
+def pull_mentions(terms: str, months: int, pages: Optional[int] = None, area: Optional[dict] = None,
+                  location_note: bool = True) -> dict:
     """One web-search pull: 2 searches x `pages` pages, each billable. A failure never breaks the analysis.
     `searches` is how many billable searches this pull actually made (0 if served from cache)."""
+    if not (terms or "").strip():
+        return {"items": [], "terms": "", "failed": True, "cached": False, "pages": effective_pages(pages), "searches": 0,
+                "notes": ["Internet mentions need a business name, and the saved link has none. Save the business by name and city to include them."]}
     try:
         items, cached, notes = fetch_mentions_with_meta(terms, months, pages)
-        return {"items": items, "terms": terms, "notes": notes, "cached": cached, "failed": False,
+        if not area and location_note:
+            notes = list(notes) + ["We couldn't find this store's street address, so these results cover the business name everywhere, not just this store. Save it as \"Name, street, city\" to limit them to this location."]
+        return {"items": items, "terms": terms, "area": area, "notes": notes, "cached": cached, "failed": False,
                 "pages": effective_pages(pages), "searches": 0 if cached else searches_for(terms, pages)}
     except HTTPException as exc:
         return {"items": [], "terms": terms, "failed": True, "cached": False, "pages": effective_pages(pages), "searches": 0,
@@ -124,6 +132,7 @@ def assemble(
     mentions: Optional[dict] = None,
     unrated: Optional[Dict[str, list]] = None,
     industry: Optional[str] = None,
+    ai_summary: bool = False,
 ) -> dict:
     """Builds every panel from reviews that were already pulled (no scraping here)."""
     view = view if (view == "combined" or view in reviews_by_source) else "combined"
@@ -136,7 +145,7 @@ def assemble(
     # the platform comparison, but are NEVER counted as star reviews or mixed into any rating.
     web_items = []
     if paid and mentions is not None:
-        web_items = build_mentions(mentions["items"], mentions["terms"], [], mentions.get("failed", False))["items"]
+        web_items = build_mentions(mentions["items"], mentions["terms"], [], mentions.get("failed", False), mentions.get("area"))["items"]
 
     # Written reviews with no stars (Uber Eats): shown and read for tone, never counted in any star number.
     unrated_built = {}
@@ -177,7 +186,20 @@ def assemble(
         "review_list": None,
         "mentions": None,
         "industry": None,
+        "ai_summary": None,
     }
+
+    # Every industry except healthcare gets an AI summary instead of rule-based flags and drift alerts.
+    pack_for_ai = get_pack(industry)
+    if ai_summary_enabled_for(pack_for_ai):
+        result["sentiment_drift"]["drift_alerts"] = []
+        result["sentiment_drift"]["drift_alerts_enabled"] = False
+        if ai_summary:
+            result["ai_summary"] = build_ai_summary(reviews, pack_for_ai, location, months)
+    else:
+        result["sentiment_drift"]["drift_alerts_enabled"] = True
+        if ai_summary and features.AI_SUMMARIES:
+            result["ai_summary"] = {"status": "healthcare"}
 
     if paid:
         # Time of day is only meaningful for Google (other platforms may give just a date).
@@ -194,7 +216,7 @@ def assemble(
             trends = result["trends"] or {}
             negative_topics = [t["term"] for t in trends.get("rising", []) if t.get("tone") == "negative"][:6] \
                 if trends.get("status") == "ok" else []
-            result["mentions"] = build_mentions(mentions["items"], mentions["terms"], negative_topics, mentions.get("failed", False))
+            result["mentions"] = build_mentions(mentions["items"], mentions["terms"], negative_topics, mentions.get("failed", False), mentions.get("area"))
             result["mentions"]["notes"] = mentions.get("notes", [])
             result["mentions"]["searches"] = mentions.get("searches", 0)
             result["mentions"]["pages"] = mentions.get("pages")

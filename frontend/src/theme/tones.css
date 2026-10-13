@@ -1,0 +1,8 @@
+/* Shades of orange for the front page. --tone is the accent, --tone-soft a pale tint, --tone-text a darker shade
+   that keeps small text at 4.5:1 or better on white. 'brand' follows the company's brand colour. */
+.tone-coral { --tone: #e8451e; --tone-soft: #fff0ec; --tone-text: #b53a15; }
+.tone-tangerine { --tone: #f97316; --tone-soft: #fff4e9; --tone-text: #b45309; }
+.tone-amber { --tone: #f59e0b; --tone-soft: #fff8e6; --tone-text: #92580a; }
+.tone-apricot { --tone: #fb923c; --tone-soft: #fff3e8; --tone-text: #a3470a; }
+.tone-burnt { --tone: #c2410c; --tone-soft: #fdeee6; --tone-text: #9a3412; }
+.tone-brand { --tone: var(--brand, #ff4b4b); --tone-soft: #fff1ee; --tone-text: #c2260c; }

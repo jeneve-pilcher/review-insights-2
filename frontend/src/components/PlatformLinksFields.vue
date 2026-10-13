@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { emptyLinks, missingPlatforms, savedPlatforms } from '../utils/links'
 import { splitPlatforms } from '../utils/onboarding'
+import UnavailablePlatforms from './UnavailablePlatforms.vue'
 
 // The optional review-page fields. Pages already saved show as connected (they're set once). The rest are inputs:
 // the industry's recommended platforms (and any the person said they use) up front, the others behind "show more".
@@ -43,5 +44,7 @@ const visibleMore = computed(() => split.value.more.filter((p) => showMore.value
     </button>
 
     <p v-if="!missing.length" class="oc-note">Every page is connected. Contact support if one needs to change.</p>
+
+    <UnavailablePlatforms :industry="pack?.id ?? ''" />
   </div>
 </template>

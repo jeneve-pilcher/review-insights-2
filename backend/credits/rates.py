@@ -27,6 +27,8 @@ APIFY_RUN_START = _f("RATE_APIFY_RUN_START_USD", 0.005)           # a small per-
 WEB_SEARCH = _f("RATE_WEB_SEARCH_USD", 0.005)                     # Outscraper Google Search: about half a cent
 AI_DRAFT = _f("RATE_AI_DRAFT_USD", 0.002)                         # one AI reply draft (real cost is nearer a tenth of a cent)
 
+AI_SUMMARY = _f("RATE_AI_SUMMARY_USD", 0.004)                       # one AI summary of a location's reviews (about 3,000 tokens in, 400 out on a small model)
+
 MARKUP = _f("CREDIT_MARKUP", 2.5)                                 # customer pays $5 for $2.00 of credit
 PACK_PRICES = [float(p) for p in os.environ.get("CREDIT_PACK_PRICES", "10,25,50,100").split(",") if p.strip()]
 
@@ -34,7 +36,7 @@ PACK_PRICES = [float(p) for p in os.environ.get("CREDIT_PACK_PRICES", "10,25,50,
 def rates() -> Dict[str, float]:
     return {
         "google_review": GOOGLE_REVIEW, "yelp_review": YELP_REVIEW, "opentable_review": OPENTABLE_REVIEW,
-        "web_search": WEB_SEARCH, "ai_draft": AI_DRAFT,
+        "web_search": WEB_SEARCH, "ai_draft": AI_DRAFT, "ai_summary": AI_SUMMARY,
         "doordash_review": DOORDASH_REVIEW, "ubereats_review": UBEREATS_REVIEW, "grubhub_review": GRUBHUB_REVIEW,
         "apify_run_start": APIFY_RUN_START, "zocdoc_result": ZOCDOC_RESULT,
     }
@@ -51,7 +53,7 @@ def find_pack(pack_id: str) -> Optional[dict]:
 
 
 def cost_breakdown(fresh: Optional[Dict[str, int]] = None, searches: int = 0,
-                   competitor_reviews: int = 0, drafts: int = 0) -> dict:
+                   competitor_reviews: int = 0, drafts: int = 0, summaries: int = 0) -> dict:
     """The API cost of what was actually bought. `fresh` = reviews pulled this time per source (0 when the
     result came from the 30-minute cache, which costs nothing)."""
     fresh = fresh or {}
@@ -72,6 +74,7 @@ def cost_breakdown(fresh: Optional[Dict[str, int]] = None, searches: int = 0,
     add("Competitor reviews (Google)", competitor_reviews, GOOGLE_REVIEW)
     add("Web searches", searches, WEB_SEARCH)
     add("AI reply drafts", drafts, AI_DRAFT)
+    add("AI summary", summaries, AI_SUMMARY)
     return {"lines": lines, "total_usd": round(sum(l["cost_usd"] for l in lines), 6)}
 
 

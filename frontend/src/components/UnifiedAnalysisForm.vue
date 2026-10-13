@@ -1,8 +1,11 @@
 <script setup>
+import { shortBusinessName } from '../utils/placeName'
+import { FEATURES } from '../content/features'
+import { normalizeCompetitors } from '../utils/competitors'
 import { computed, reactive, ref, watch } from 'vue'
 import { analyzeAll } from '../api'
 import { estimateRun, estimateWarning, formatUsd } from '../utils/credits'
-import { MAX_PAGES, clampPages, defaultMentionTerms, estimateCostUsd, estimateSearches, formatCost } from '../utils/mentions'
+import { clampPages } from '../utils/mentions'
 import { MAX_MONTHS, parseMonths } from '../utils/months'
 
 const props = defineProps({
@@ -75,15 +78,15 @@ const sourcesToPull = computed(() => {
   return list
 })
 const includeMentions = ref(false)
-const mentionTerms = ref('')
-const mentionPages = ref(2)
+// Internet mentions are one tick: the business name is found automatically and the depth is fixed at 2 pages (about 2 cents).
+const mentionPages = 2
 const runEstimate = computed(() =>
   estimateRun(
     {
       sources: sourcesToPull.value,
-      mentions: props.showMentions && includeMentions.value,
-      mentionPages: clampPages(mentionPages.value),
-      competitors: competitors.value.filter((c) => c.search_query.trim()).length,
+      mentions: FEATURES.internetMentions && props.showMentions && includeMentions.value,
+      mentionPages: clampPages(mentionPages),
+      competitors: normalizeCompetitors(competitors.value).length,
     },
     props.creditInfo,
   ),
@@ -92,8 +95,6 @@ const estimateBreakdown = computed(() =>
   runEstimate.value ? runEstimate.value.lines.map((line) => `${line.label} ${formatUsd(line.usd)}`).join(' + ') : '',
 )
 const runWarning = computed(() => estimateWarning(runEstimate.value, props.creditInfo))
-const searchEstimate = computed(() => ({ searches: estimateSearches(mentionPages.value), cost: formatCost(estimateCostUsd(mentionPages.value)) }))
-const mentionPlaceholder = computed(() => defaultMentionTerms(props.businessLocation))
 
 function addCompetitor() {
   if (competitors.value.length >= 5) return
@@ -119,14 +120,10 @@ async function runAnalysis(viewOverride) {
       reviewsToCustomersMultiplier: multiplier.value,
       sources: sourcesToPull.value,
       view: typeof viewOverride === 'string' ? viewOverride : props.view,
-      mentions: props.showMentions && includeMentions.value,
-      mentionPages: clampPages(mentionPages.value),
-      mentionTerms: props.showMentions && includeMentions.value && mentionTerms.value.trim() ? mentionTerms.value.trim() : null,
-      competitors: props.showCompetitors
-        ? competitors.value
-            .filter((c) => c.search_query.trim())
-            .map((c) => ({ name: c.name.trim() || 'Competitor', search_query: c.search_query.trim() }))
-        : [],
+      mentions: FEATURES.internetMentions && props.showMentions && includeMentions.value,
+      mentionPages: clampPages(mentionPages),
+      mentionTerms: null,
+      competitors: props.showCompetitors ? normalizeCompetitors(competitors.value) : [],
     })
     emit('result', { data })
   } catch (err) {
@@ -143,7 +140,7 @@ defineExpose({ runAnalysis })
   <section class="chart-section unified-form">
     <h3>🔎 Run Analysis</h3>
     <p class="chart-desc">
-      Your Google reviews for <strong>{{ businessLocation }}</strong> are pulled once (plus Yelp and any reservation or delivery pages
+      Your Google reviews for <strong>{{ shortBusinessName(businessLocation) }}</strong> are pulled once (plus Yelp and any reservation or delivery pages
       you add and tick below) and shared by every panel, all from this one button. A shorter time
       window runs faster and uses fewer scraping credits.
     </p>
@@ -183,7 +180,7 @@ defineExpose({ runAnalysis })
         link if a name is ambiguous.
       </p>
       <div v-for="(c, i) in competitors" :key="i" class="competitor-row">
-        <input v-model="c.name" type="text" placeholder="Competitor name" class="competitor-name" />
+        <input v-model="c.name" type="text" placeholder="Competitor name (optional)" class="competitor-name" />
         <input v-model="c.search_query" type="text" placeholder="Location, or a Google Maps URL" class="competitor-query" />
         <button class="remove-btn" @click="removeCompetitor(i)">✕</button>
       </div>
@@ -204,23 +201,11 @@ defineExpose({ runAnalysis })
       </label>
     </div>
 
-    <div v-if="showMentions" class="source-picker">
+    <div v-if="showMentions && FEATURES.internetMentions" class="source-picker">
       <label class="source-check">
         <input v-model="includeMentions" type="checkbox" />
-        Include internet mentions <span class="source-hint">(news, blogs, forums, social; two extra web searches)</span>
+        Include internet mentions <span class="source-hint">(news, blogs, forums, social; about 2&cent;)</span>
       </label>
-      <div v-if="includeMentions" style="margin-top: 6px">
-        <input v-model="mentionTerms" type="text" class="months-input" maxlength="200" :placeholder="mentionPlaceholder" />
-        <div class="oc-note">Words to search for. Leave blank to search: <strong>{{ mentionPlaceholder }}</strong></div>
-        <label class="field" style="margin-top: 8px; max-width: 220px">
-          <span>Depth (pages per search)</span>
-          <input v-model.number="mentionPages" class="months-input" type="number" min="1" :max="MAX_PAGES" step="1" />
-        </label>
-        <div class="oc-note">
-          Each page is about 10 results. This will run about <strong>{{ searchEstimate.searches }} web searches (roughly {{ searchEstimate.cost }})</strong>;
-          a repeat click inside 30 minutes is free. Google returns a sample of the web, not everything, so more pages find more but never all.
-        </div>
-      </div>
     </div>
 
     <div v-if="runEstimate && creditInfo?.enforced" class="oc-note" style="margin-top: 14px">

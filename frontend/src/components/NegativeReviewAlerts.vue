@@ -1,4 +1,5 @@
 <script setup>
+import { shortBusinessName } from '../utils/placeName'
 import { computed } from 'vue'
 import DataBasis from './DataBasis.vue'
 import NlpCallout from './NlpCallout.vue'
@@ -25,7 +26,7 @@ const SOURCE_LABELS = { google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', 
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">
-      Recent 1-2★ reviews for <strong>{{ businessLocation }}</strong> from the analysis window,
+      Recent 1-2★ reviews for <strong>{{ shortBusinessName(businessLocation) }}</strong> from the analysis window,
       so managers can respond fast. Star-only ratings with no comment are included, because they
       still pull your score down. Author names are removed, and review text is scrubbed of
       anything that looks like an email, phone number, or order number before it's shown here — a

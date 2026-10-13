@@ -7,6 +7,7 @@ mention to 2 is noise, not a trend."""
 import re
 from collections import defaultdict
 from datetime import timedelta
+import features
 from typing import List, Optional
 
 from analysis.chart1_sentiment_drift import _parse_dt, _week_start
@@ -39,12 +40,19 @@ def _share(hits: int, total: int) -> Optional[float]:
     return round(hits / total, 4) if total else None
 
 
-def build_industry_trends(reviews: List[dict], pack: dict) -> dict:
+def flags_enabled(pack: dict) -> bool:
+    """The statistical flags (rising / falling, watch this / good news) are now used for healthcare only. Every other
+    industry gets an AI-written summary instead (analysis/ai_summary.py). The week-by-week numbers are always kept."""
+    return bool(pack.get("clinical")) or not features.AI_SUMMARIES
+
+
+def build_industry_trends(reviews: List[dict], pack: dict, flags: Optional[bool] = None) -> dict:
+    flags = flags_enabled(pack) if flags is None else flags
     items = []
     for r in text_reviews(reviews):
         items.append({"dt": _parse_dt(r.get("datetime_utc")), "rating": r.get("rating"), "text": r["text"].lower()})
     if len(items) < MIN_REVIEWS:
-        return {"status": "too_few", "reviews": len(items), "minimum": MIN_REVIEWS}
+        return {"status": "too_few", "reviews": len(items), "minimum": MIN_REVIEWS, "flags_enabled": flags}
 
     dated = [i for i in items if i["dt"] is not None]
     cutoff = max(i["dt"] for i in dated) - timedelta(days=RECENT_DAYS) if dated else None
@@ -72,7 +80,9 @@ def build_industry_trends(reviews: List[dict], pack: dict) -> dict:
         change = round(recent_share - earlier_share, 4) if (can_compare and recent_share is not None and earlier_share is not None) else None
 
         flag = None
-        if change is not None and change >= MIN_SHIFT and recent_hits >= MIN_HITS:
+        if not flags:
+            pass
+        elif change is not None and change >= MIN_SHIFT and recent_hits >= MIN_HITS:
             flag = "rising"
         elif change is not None and change <= -MIN_SHIFT and earlier_hits >= MIN_HITS:
             flag = "falling"
@@ -101,7 +111,7 @@ def build_industry_trends(reviews: List[dict], pack: dict) -> dict:
     themes.sort(key=lambda t: (order.get(t["tone"], 9), -t["mentions"]))
     alerts.sort(key=lambda a: order.get(a["tone"], 9))
     return {"status": "ok", "reviews": len(items), "dated_reviews": len(dated), "weeks": weeks, "themes": themes,
-            "alerts": alerts, "recent_days": RECENT_DAYS, "can_compare": can_compare}
+            "alerts": alerts, "recent_days": RECENT_DAYS, "can_compare": can_compare, "flags_enabled": flags}
 
 
 _PATTERNS = {}

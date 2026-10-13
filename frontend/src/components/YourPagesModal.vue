@@ -40,6 +40,7 @@ async function save() {
     if (industryChanged) {
       await setIndustry(industry.value)
       saved.industry = industry.value
+      saved.industry_set = true
     }
     emit('saved', saved)
     emit('close')

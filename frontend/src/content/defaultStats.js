@@ -10,8 +10,8 @@ export const defaultStats = [
     url: 'https://www.brightlocal.com/research/local-consumer-review-survey',
   },
   {
-    value: '6',
-    label: 'review sites used by the average consumer when choosing a local business',
+    value: '71%',
+    label: 'of consumers read local reviews on Google, the most-used review site, so your Google reviews shape how you are seen online',
     source: 'BrightLocal, 2026',
     url: 'https://www.brightlocal.com/research/local-consumer-review-survey',
   },

@@ -3,6 +3,9 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createCheckoutSession } from '../api'
 import { supabase } from '../supabase'
+import { isExistingAccount } from '../utils/accountExists'
+import { TERMS_VERSION } from '../legal/terms'
+import { PRIVACY_DATE } from '../legal/privacy'
 
 const router = useRouter()
 const route = useRoute()
@@ -13,16 +16,30 @@ const companyName = ref('')
 const error = ref('')
 const loading = ref(false)
 const needsEmailConfirmation = ref(false)
+const existingAccount = ref(false)
+const agreed = ref(false)
 
 async function handleSubmit() {
+  if (!agreed.value) {
+    error.value = 'Please agree to the Terms of Service and Privacy Policy to create an account.'
+    return
+  }
   loading.value = true
   error.value = ''
 
   const { data, error: authError } = await supabase.auth.signUp({
     email: email.value,
     password: password.value,
-    options: { data: { company_name: companyName.value } },
+    // The agreement is also kept on the account itself (which version, and when), alongside the check made at first login.
+    options: { data: { company_name: companyName.value, agreed_terms_version: TERMS_VERSION, agreed_privacy_date: PRIVACY_DATE, agreed_at: new Date().toISOString() } },
   })
+
+  existingAccount.value = false
+  if (isExistingAccount(data, authError)) {
+    existingAccount.value = true
+    loading.value = false
+    return
+  }
 
   if (authError) {
     error.value = authError.message
@@ -72,9 +89,20 @@ async function handleSubmit() {
             <input v-model="password" type="password" autocomplete="new-password" minlength="8" required />
           </label>
 
+          <label class="source-check" style="display: block; margin: 12px 0">
+            <input v-model="agreed" type="checkbox" required />
+            I have read and agree to the
+            <a href="/#terms" target="_blank" rel="noopener">Terms of Service</a> and the
+            <a href="/#privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+          </label>
+
+          <p v-if="existingAccount" class="status error">
+            An account with this email already exists.
+            <router-link :to="{ path: '/login', query: { email } }">Log in instead</router-link>
+          </p>
           <p v-if="error" class="status error">{{ error }}</p>
 
-          <button class="run-btn" type="submit" :disabled="loading">
+          <button class="run-btn" type="submit" :disabled="loading || !agreed">
             {{ loading ? 'Creating account…' : (route.query.plan === 'pro' ? 'Sign up & continue to checkout' : 'Sign up') }}
           </button>
         </form>

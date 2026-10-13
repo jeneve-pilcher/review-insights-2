@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 import time
 from collections import Counter
@@ -24,6 +25,13 @@ CACHE_TTL_SECONDS = int(os.environ.get("REVIEW_CACHE_TTL_SECONDS", "1800"))
 CACHE_MAX_ENTRIES = 50
 
 _cache: dict = {}
+# What Google says about each place we pulled (name, address, city, state), so internet mentions can be limited to that
+# location. Kept in memory only, keyed by the search text; contains no review text.
+_PLACES: dict = {}
+
+
+def place_info(search_query: str) -> dict:
+    return dict(_PLACES.get((search_query or "").strip().lower(), {}))
 _cache_lock = threading.Lock()
 
 
@@ -81,6 +89,25 @@ def _call_outscraper(client, search_query: str, cutoff_ts: int):
         return client.google_maps_business_reviews(search_query, **kwargs)
 
 
+_GID = re.compile(r"(0x[0-9a-f]+:0x[0-9a-f]+)", re.I)
+
+
+def google_id_from_link(query: str) -> Optional[str]:
+    """The place id inside a Google Maps link (looks like 0x8814af28:0x855b6536), or None."""
+    q = (query or "").strip()
+    if not re.match(r"https?://", q, re.I):
+        return None
+    m = _GID.search(q)
+    return m.group(1) if m else None
+
+
+def _found_place(results) -> bool:
+    for place in results or []:
+        if isinstance(place, dict) and (place.get("name") or place.get("address") or place.get("full_address") or place.get("reviews_data")):
+            return True
+    return False
+
+
 def _fetch_fresh(search_query: str, months: int) -> Tuple[List[dict], int]:
     api_key = config.require(config.OUTSCRAPER_API_KEY, "OUTSCRAPER_API_KEY")
     client = OutscraperClient(api_key=api_key)
@@ -93,9 +120,22 @@ def _fetch_fresh(search_query: str, months: int) -> Tuple[List[dict], int]:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Error fetching reviews for '{search_query}': {exc}")
 
+    # A Google Maps link sometimes returns nothing (extra tracking parameters, or a link form Outscraper doesn't
+    # resolve). The link also carries Google's own place id (0x...:0x...), so try that once before giving up.
+    gid = google_id_from_link(search_query)
+    if gid and not _found_place(results):
+        try:
+            results = _call_outscraper(client, gid, cutoff_ts)
+        except Exception:
+            pass
+
     normalized = []
     raw_total = 0
     for place in results:
+        if isinstance(place, dict) and (place.get("name") or place.get("address") or place.get("full_address")):
+            _PLACES[search_query.strip().lower()] = {
+                k: place.get(k) for k in ("name", "address", "full_address", "city", "state") if isinstance(place.get(k), str)
+            }
         for r in (place.get("reviews_data") or []):
             raw_total += 1
             # Star-only reviews arrive with empty text. They stay in the list

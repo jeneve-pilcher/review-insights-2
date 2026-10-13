@@ -12,7 +12,8 @@ def _business_breakdown(name: str, search_query: str, months: int, reviews=None)
         reviews, cached = fetch_reviews_with_meta(search_query, months)
         fresh = 0 if cached else len(reviews)
     if not reviews:
-        return {"name": name, "dominant_tiers": [], "tiers": [], "fresh_reviews": fresh}
+        # Say so, so the page can explain an empty competitor instead of silently showing nothing.
+        return {"name": name, "dominant_tiers": [], "tiers": [], "fresh_reviews": fresh, "review_count": 0, "written_count": 0, "no_reviews": True}
 
     # Tiers come from ALL reviews (star-only included). Themes can only be read
     # from written reviews, and only the top-3 tiers are ever shown, so only
@@ -49,7 +50,9 @@ def _business_breakdown(name: str, search_query: str, months: int, reviews=None)
             "top_keywords": top_keywords([r["text"] for r in tier_text]),
         })
 
-    return {"name": name, "dominant_tiers": tiers, "tiers": tier_rows, "fresh_reviews": fresh}
+    written = sum(1 for r in reviews if has_text(r))
+    return {"name": name, "dominant_tiers": tiers, "tiers": tier_rows, "fresh_reviews": fresh,
+            "review_count": len(reviews), "written_count": written, "no_reviews": False}
 
 
 def build_competitor_share(businesses: list[dict], months: int = 6, own_reviews=None) -> dict:

@@ -49,7 +49,7 @@ async function handleSubmit() {
     await setBusinessLocation(place)
     if (industries.value.length) await setIndustry(industry.value)
     clearOnboarding()
-    emit('set', { location: place, links: { ...saved, industry: industry.value } })
+    emit('set', { location: place, links: { ...saved, industry: industry.value, industry_set: industries.value.length > 0 } })
   } catch (err) {
     error.value = err?.response?.data?.detail || 'Could not save your setup.'
   } finally {

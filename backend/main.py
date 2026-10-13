@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import config
 from analysis import pipeline
-from analysis.mentions import default_terms
+import features
+from analysis.mentions import default_terms, mention_target
+from analysis.competitor_input import clean_competitors
+from analysis.outscraper_client import place_info
 from analysis import industries
 from branding import allow_lookup, domain_of, public_branding
 from analysis.delivery_clients import normalize_doordash_url, normalize_grubhub_url, normalize_ubereats_url
@@ -85,6 +88,7 @@ def me(current_user: CurrentUser = Depends(get_current_user)):
         "grubhub_url": profile.get("grubhub_url"),
         "monthly_limit_usd": profile.get("monthly_limit_usd"),
         "industry": profile.get("industry") or industries.DEFAULT,
+        "industry_set": bool(profile.get("industry")),      # False = still on the default; the dashboard asks them to choose
         "branding": _branding_for(membership),
         "org_role": membership["role"] if membership else None,
         "terms_version": profile.get("terms_version"),
@@ -346,9 +350,10 @@ def analyze_all(
         location, yelp_url, req.months, want_yelp=paid and "yelp" in req.sources, others=others
     )
     mentions = None
-    if paid and req.mentions:
-        terms = (req.mention_terms or "").strip() or default_terms(location)
-        mentions = pipeline.pull_mentions(terms, req.months, req.mention_pages)
+    if paid and req.mentions and features.INTERNET_MENTIONS:
+        custom = (req.mention_terms or "").strip()
+        terms, area = (custom, None) if custom else mention_target(location, place_info(location))
+        mentions = pipeline.pull_mentions(terms, req.months, req.mention_pages, area=area, location_note=not custom)
 
     result = pipeline.assemble(
         reviews_by_source,
@@ -361,10 +366,11 @@ def analyze_all(
         avg_order_value=req.avg_order_value,
         reviews_to_customers_multiplier=req.reviews_to_customers_multiplier,
         alert_email=current_user.email,
-        competitors=[c.model_dump() for c in req.competitors if c.search_query.strip()],
+        competitors=clean_competitors([c.model_dump() for c in req.competitors]),
         mentions=mentions,
         unrated=unrated,
         industry=profile.get("industry"),
+        ai_summary=features.AI_SUMMARIES,
     )
 
     # Charge what this run actually cost. Anything served from the 30-minute cache was already paid for.
@@ -372,6 +378,7 @@ def analyze_all(
         fresh,
         searches=(mentions or {}).get("searches", 0),
         competitor_reviews=(result.get("competitors") or {}).get("fresh_reviews", 0),
+        summaries=1 if (result.get("ai_summary") or {}).get("fresh") else 0,
     )
     result["billing"] = wallet.settle(get_store(), credit_scope, allowance, cost, "Analysis")
     return result

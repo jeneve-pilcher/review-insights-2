@@ -45,6 +45,13 @@ const items = pickStats(Object.values(files)[0], defaultStats)
   gap: 4px;
 }
 
+.stat-card { border-top: 4px solid var(--brand, #ff4b4b); }
+
+.stat-card:nth-child(5n+2) { border-top-color: #f97316; }
+.stat-card:nth-child(5n+3) { border-top-color: #f59e0b; }
+.stat-card:nth-child(5n+4) { border-top-color: #fb923c; }
+.stat-card:nth-child(5n+5) { border-top-color: #c2410c; }
+
 .stat-value {
   font-size: 34px;
   font-weight: 700;

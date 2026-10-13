@@ -12,6 +12,7 @@ import {
 } from 'chart.js'
 import NlpCallout from './NlpCallout.vue'
 import { competitorReadItems } from '../utils/nlpInsights'
+import { shortBusinessName } from '../utils/placeName'
 
 ChartJS.register(Title, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
@@ -26,6 +27,19 @@ const props = defineProps({
 })
 
 const readItems = computed(() => competitorReadItems(props.result))
+
+// Say why a business has nothing in the chart, instead of leaving it out without a word.
+const businessNotes = computed(() => {
+  const out = []
+  for (const biz of props.result?.businesses ?? []) {
+    if (biz.no_reviews) {
+      out.push(`${biz.name}: no Google reviews were found in the last ${props.months} ${props.months === 1 ? 'month' : 'months'}. Check that its Google Maps link or "name, street, city" points to one place, or try a longer time window.`)
+    } else if (!biz.written_count) {
+      out.push(`${biz.name}: ${biz.review_count} star ratings but no written reviews, so there are no themes to compare.`)
+    }
+  }
+  return out
+})
 
 // Flatten each business's tiers into ordered columns: "Biz (5★)", "Biz (4★)", ...
 const flattenedColumns = computed(() => {
@@ -70,7 +84,7 @@ const chartOptions = {
       <span class="data-basis">Each business: star tiers from all its reviews · themes from written reviews</span>
     </div>
     <p class="chart-desc">
-      Compares <strong>{{ businessLocation }}</strong> (your account's business) against the
+      Compares <strong>{{ shortBusinessName(businessLocation) }}</strong> against the
       competitors you add in <em>Run Analysis</em> above, using reviews from the last {{ months }}
       {{ months === 1 ? 'month' : 'months' }}. It breaks down what drives each business's top 3
       dominant star tiers by theme - exposing exactly where a competitor is vulnerable. Top
@@ -89,6 +103,10 @@ const chartOptions = {
         :items="readItems"
         technique="A zero-shot language model reads each written review and assigns themes (quality, pricing, weekend communication, staff) with no keyword lists, then keywords are extracted per star tier."
       />
+
+      <ul v-if="businessNotes.length" class="status error" style="margin: 0 0 12px; padding-left: 18px">
+        <li v-for="n in businessNotes" :key="n">{{ n }}</li>
+      </ul>
 
       <Bar :data="chartData" :options="chartOptions" />
 

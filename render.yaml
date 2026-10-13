@@ -1,27 +1,76 @@
+# Render Blueprint for Review Insights: one backend (Docker) and one frontend (static site).
+# Render dashboard -> New -> Blueprint -> pick this repo. Values marked `sync: false` are asked for in the dashboard,
+# so no secret ever lives in this file. The step-by-step guide is DEPLOY-RENDER.md.
 services:
+  # ---- Backend (FastAPI) ----------------------------------------------------------------------
   - type: web
     name: review-insights-backend
-    env: docker
+    runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    plan: starter
+    # The review-theme model (PyTorch) needs memory. 512 MB (starter) is very likely too small; use 2 GB (standard) or more.
+    plan: standard
     healthCheckPath: /api/health
     envVars:
+      # Supabase
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_JWT_SECRET
         sync: false
+      # Data sources
       - key: OUTSCRAPER_API_KEY
         sync: false
+      - key: APIFY_API_TOKEN
+        sync: false
+      # AI-drafted review replies only (optional; AI summaries are switched off in backend/features.py)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Stripe
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: STRIPE_PRICE_ID_PRO
         sync: false
+      # Your frontend's address, with https:// and NO trailing slash. Set these after the frontend exists (guide step 7).
       - key: CORS_ORIGINS
-        value: https://your-frontend-domain.example.com
+        sync: false
       - key: FRONTEND_URL
-        value: https://your-frontend-domain.example.com
+        sync: false
+      # Email alerts (optional: leave blank and alerts are only written to the log)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      # Scheduled checks run inside this one instance. Keep it a single always-on instance.
+      - key: ENABLE_SCHEDULER
+        value: "true"
+
+  # ---- Frontend (Vue, built to static files) ---------------------------------------------------
+  - type: web
+    name: review-insights-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # The app uses real URLs (/login, /dashboard), so every path must serve index.html.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # These are baked into the page at build time. Change one and the site must be rebuilt.
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

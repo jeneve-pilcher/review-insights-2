@@ -7,8 +7,8 @@
 // Whenever you change the meaning of these terms, change TERMS_VERSION: everyone is then
 // asked to agree again, and their agreement is recorded against the new version.
 
-export const TERMS_VERSION = '2026-10-06'
-export const EFFECTIVE_DATE = 'October 6, 2026'
+export const TERMS_VERSION = '2026-10-13'
+export const EFFECTIVE_DATE = 'October 13, 2026'
 
 // Set to false to show the terms without requiring people to accept them first.
 export const REQUIRE_ACCEPTANCE = true
@@ -118,7 +118,7 @@ export const SECTIONS = [
           {
             id: 'estimates',
             title: 'Scores, signals and dollar figures are indicators, not facts or predictions',
-            text: 'Revenue and "revenue drag" figures are rough estimates built from review patterns and numbers you type in (such as average order value); we cannot see your sales. "Rating gain" figures are simple arithmetic on your own reviews, not forecasts. Tone and topic scoring is automated and can misread sarcasm, slang or very short comments. Trend and signal checks use statistical thresholds, so some flagged patterns will be chance and some real patterns will be missed. Industry themes and graphs are found by matching words and phrases in written reviews, so they can miss unusual wording or catch an unrelated use of a word, and a flagged trend can still be chance. We do not promise that acting on any signal will improve your ratings, search ranking or revenue.',
+            text: 'Revenue and "revenue drag" figures are rough estimates built from review patterns and numbers you type in (such as average order value); we cannot see your sales. "Rating gain" figures are simple arithmetic on your own reviews, not forecasts. Tone and topic scoring is automated and can misread sarcasm, slang or very short comments. Trend and signal checks use statistical thresholds, so some flagged patterns will be chance and some real patterns will be missed. The AI-written summary of your reviews can be wrong, can overstate a pattern in a small sample, and can miss things; check it against the charts and your own reviews before acting on it. Industry themes and graphs are found by matching words and phrases in written reviews, so they can miss unusual wording or catch an unrelated use of a word, and a flagged trend can still be chance. We do not promise that acting on any signal will improve your ratings, search ranking or revenue.',
           },
           {
             id: 'time',
@@ -153,7 +153,7 @@ export const SECTIONS = [
           {
             id: 'providers',
             title: 'Some features use outside services',
-            text: 'To run the service we rely on providers for hosting and the database, payments, email, review and web-search data collection, and (only if enabled) AI drafting. When AI drafting is on, the text of the review you are replying to, with emails, phone numbers and order numbers removed, is sent to the AI provider to produce a draft. These providers can have outages or change their terms, which can affect the service. Where provider-level data about individual doctors is enabled, it comes from the doctors\' public pages and is shown only to the people your company has given access.',
+            text: 'To run the service we rely on providers for hosting and the database, payments, email, review and web-search data collection, and (only if enabled) AI drafting and AI summaries. When AI drafting is on, the text of the review you are replying to, with emails, phone numbers and order numbers removed, is sent to the AI provider to produce a draft. When AI summaries are on, each time you run an analysis, calculated counts and averages and a small sample of your most recent written reviews (at most 20, each cut short, with emails, phone numbers and similar details removed, and without reviewer names) are sent to the AI provider to write the summary. AI summaries are not used for healthcare accounts, and review text from healthcare accounts is never sent to an AI provider. These providers can have outages or change their terms, which can affect the service. Where provider-level data about individual doctors is enabled, it comes from the doctors\' public pages and is shown only to the people your company has given access.',
           },
         ],
       },

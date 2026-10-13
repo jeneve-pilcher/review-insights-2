@@ -66,9 +66,10 @@ const subOptions = {
 
     <template v-else>
       <p class="chart-desc">
-        How often each {{ pack.label.toLowerCase() }} theme comes up in written reviews, week by week, and whether it's
-        rising or falling lately. A theme is only flagged when there's enough evidence, since a jump from one mention to
-        two isn't a trend. Based on {{ trends?.reviews ?? 0 }} written reviews.
+        How often each {{ pack.label.toLowerCase() }} theme comes up in written reviews, week by week<template v-if="trends?.flags_enabled">,
+        and whether it's rising or falling lately. A theme is only flagged when there's enough evidence, since a jump from one
+        mention to two isn't a trend</template><template v-else>. See the summary above for what's changing</template>.
+        Based on {{ trends?.reviews ?? 0 }} written reviews.
       </p>
 
       <div v-if="kpis.length" class="oc-grid" style="margin-bottom: 10px">
@@ -82,11 +83,13 @@ const subOptions = {
       <p v-if="trendNote" class="status">{{ trendNote }}</p>
 
       <template v-if="trends && trends.status === 'ok'">
-        <ul v-if="trends.alerts.length" class="nlp-list" style="padding-left: 0; list-style: none">
-          <li v-for="a in trends.alerts" :key="a.theme" class="nlp-item" :class="`nlp-${toneClass(a.tone)}`">{{ a.text }}</li>
-        </ul>
-        <p v-else-if="trends.can_compare" class="status">No theme has moved enough lately to flag. That's steady.</p>
-        <p v-else class="status">Not enough older reviews yet to say what's changing, so no themes are flagged.</p>
+        <template v-if="trends.flags_enabled">
+          <ul v-if="trends.alerts.length" class="nlp-list" style="padding-left: 0; list-style: none">
+            <li v-for="a in trends.alerts" :key="a.theme" class="nlp-item" :class="`nlp-${toneClass(a.tone)}`">{{ a.text }}</li>
+          </ul>
+          <p v-else-if="trends.can_compare" class="status">No theme has moved enough lately to flag. That's steady.</p>
+          <p v-else class="status">Not enough older reviews yet to say what's changing, so no themes are flagged.</p>
+        </template>
 
         <div v-if="trends.weeks.length" style="margin: 14px 0 6px">
           <button

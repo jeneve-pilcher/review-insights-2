@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { industryById } from '../content/industries'
 import { PLATFORMS } from '../utils/links'
+import UnavailablePlatforms from './UnavailablePlatforms.vue'
 import { saveOnboarding } from '../utils/onboarding'
 import { canContinue, planLabel, signupTarget, sourcesFor } from '../utils/startFlow'
 
@@ -71,6 +72,7 @@ function go(skip) {
         </template>
       </template>
       <p v-else class="gsp-note">There are no extra platforms for this industry yet.</p>
+      <UnavailablePlatforms :industry="props.industry" />
 
       <div class="gsp-actions">
         <button class="run-btn" type="button" :disabled="!ready" @click="go(false)">

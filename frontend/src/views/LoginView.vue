@@ -8,7 +8,8 @@ import { applyBranding, brandTitle, emailDomain, forgetBrand, recallBrand, remem
 const router = useRouter()
 const route = useRoute()
 
-const email = ref('')
+// Arriving from sign-up with "you already have an account" fills the email in (/login?email=...).
+const email = ref(typeof route.query.email === 'string' ? route.query.email.slice(0, 254) : '')
 const password = ref('')
 const error = ref('')
 const loading = ref(false)

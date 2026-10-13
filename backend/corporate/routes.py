@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 import config
 from analysis import pipeline
-from analysis.mentions import default_terms
+import features
+from analysis.mentions import default_terms, mention_target
+from analysis.outscraper_client import place_info
 from analysis.delivery_clients import normalize_doordash_url, normalize_grubhub_url, normalize_ubereats_url
 from analysis.opentable_client import normalize_opentable_url
 from analysis.yelp_client import normalize_yelp_url
@@ -449,11 +451,15 @@ def location_analysis(location_id: str, months: int = 6, view: str = "combined",
     )
     if sum(fresh.values()):
         get_store().add_usage(member["org_id"], location_id, sum(fresh.values()), "analysis")
-    web = pipeline.pull_mentions(default_terms(loc["google_query"]), months) if mentions else None
+    web = None
+    if mentions and features.INTERNET_MENTIONS:
+        terms, area = mention_target(loc["google_query"], place_info(loc["google_query"]))
+        web = pipeline.pull_mentions(terms, months, area=area)
     result = pipeline.assemble(by_source, cached, notes, view=view, months=months, location=loc["name"],
                                paid=True, alert_email=None, competitors=None, mentions=web, unrated=unrated,
-                               industry=member["org"].get("industry"))
-    cost = credit_rates.cost_breakdown(fresh, searches=(web or {}).get("searches", 0))
+                               industry=member["org"].get("industry"), ai_summary=features.AI_SUMMARIES)
+    cost = credit_rates.cost_breakdown(fresh, searches=(web or {}).get("searches", 0),
+                                       summaries=1 if (result.get("ai_summary") or {}).get("fresh") else 0)
     result["billing"] = wallet.settle(get_store(), org_scope, 0.0, cost, f"Analysis of {loc['name']}")
     return result
 

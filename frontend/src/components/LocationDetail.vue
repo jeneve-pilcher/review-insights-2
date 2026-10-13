@@ -10,10 +10,13 @@ import ReviewReplies from './ReviewReplies.vue'
 import RevenueSignals from './RevenueSignals.vue'
 import SentimentDriftChart from './SentimentDriftChart.vue'
 import IndustryPanel from './IndustryPanel.vue'
+import AiSummary from './AiSummary.vue'
+import { FEATURES } from '../content/features'
 import LocationProviders from './LocationProviders.vue'
 import TrendsPanel from './TrendsPanel.vue'
 import WaitTimeHeatmap from './WaitTimeHeatmap.vue'
 import WeeklyThemesChart from './WeeklyThemesChart.vue'
+import ToneVsStarsChart from './ToneVsStarsChart.vue'
 
 const props = defineProps({
   locationId: { type: String, required: true },
@@ -71,7 +74,7 @@ async function analyze(view = 'combined') {
   analyzing.value = true
   analysisError.value = ''
   try {
-    analysis.value = await orgApi.analysis(props.locationId, monthsCheck.value.value, view, includeMentions.value)
+    analysis.value = await orgApi.analysis(props.locationId, monthsCheck.value.value, view, FEATURES.internetMentions && includeMentions.value)
     emit('changed')
   } catch (err) {
     analysisError.value = err?.response?.data?.detail || 'The analysis failed.'
@@ -185,7 +188,7 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
               required
             />
           </label>
-          <label class="source-check" style="align-self: flex-end; margin-bottom: 8px">
+          <label v-if="FEATURES.internetMentions" class="source-check" style="align-self: flex-end; margin-bottom: 8px">
             <input v-model="includeMentions" type="checkbox" /> Include internet mentions
           </label>
           <button class="run-btn" :disabled="analyzing" @click="analyze('combined')">
@@ -221,14 +224,16 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
           :grubhub-url="loc.grubhub_url"
           :replies-off="repliesOff"
         />
+        <AiSummary v-if="FEATURES.aiSummaries" :result="analysis.ai_summary" />
         <RevenueSignals :result="analysis.signals" :meta="analysis.meta" />
         <PlatformComparison v-if="(analysis.platforms?.platforms?.length ?? 0) > 1" :result="analysis.platforms" />
         <SentimentDriftChart :result="analysis.sentiment_drift" :meta="analysis.meta" />
         <WeeklyThemesChart :weekly="analysis.sentiment_drift?.weekly ?? []" :meta="analysis.meta" />
+        <ToneVsStarsChart :weekly="analysis.sentiment_drift?.weekly ?? []" :meta="analysis.meta" />
         <TrendsPanel :result="analysis.trends" :meta="analysis.meta" />
         <IndustryPanel :result="analysis.industry" :meta="analysis.meta" />
         <LocationProviders v-if="providersOn" :location-id="loc.id" />
-        <MentionsPanel v-if="analysis.mentions" :result="analysis.mentions" />
+        <MentionsPanel v-if="FEATURES.internetMentions && analysis.mentions" :result="analysis.mentions" />
         <WaitTimeHeatmap :result="analysis.wait_time_heatmap" :meta="analysis.meta" />
         <NegativeReviewAlerts :business-location="loc.name" :result="analysis.negative_reviews" :meta="analysis.meta" />
       </template>

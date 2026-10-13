@@ -12,6 +12,7 @@ import {
   Title,
   Tooltip,
 } from 'chart.js'
+import ByWeekBadge from './ByWeekBadge.vue'
 import DataBasis from './DataBasis.vue'
 import NlpCallout from './NlpCallout.vue'
 import { driftReadItems } from '../utils/nlpInsights'
@@ -122,7 +123,7 @@ const chartOptions = {
       max: 5,
       grid: { drawOnChartArea: false },
     },
-    x: { grid: { display: false } },
+    x: { grid: { display: false }, title: { display: true, text: 'Week starting (Monday)' } },
   },
 }
 </script>
@@ -130,14 +131,14 @@ const chartOptions = {
 <template>
   <section class="chart-section sentiment-drift-section">
     <div class="title-row">
-      <h3>📈 Sentiment Drift Matrix</h3>
+      <h3>📈 Sentiment Drift Matrix<ByWeekBadge /></h3>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">
-      Tracks weekly volume across your top 3 dominant star tiers against the rolling average
+      Tracks volume for each week across your top 3 dominant star tiers against the rolling average
       rating - built to catch a shift from your top tier into #2/#3 before the overall score
       visibly moves. Volume and ratings count every review, including star-only ones with no
-      comment. Large red points mark weeks with a detected drift alert.
+      comment.<template v-if="result?.drift_alerts_enabled !== false"> Large red points mark weeks with a detected drift alert.</template>
     </p>
 
     <p v-if="loading" class="status">Analyzing…</p>
@@ -185,7 +186,8 @@ const chartOptions = {
 
       <Line :data="chartData" :options="chartOptions" />
 
-      <div v-if="result.drift_alerts.length" class="drift-alerts">
+      <template v-if="result.drift_alerts_enabled === false"></template>
+      <div v-else-if="result.drift_alerts.length" class="drift-alerts">
         <h4>⚠️ Sentiment Drift Alerts</h4>
         <ul>
           <li v-for="(alert, i) in result.drift_alerts" :key="i">
