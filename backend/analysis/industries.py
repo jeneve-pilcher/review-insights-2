@@ -83,6 +83,26 @@ PACKS: Dict[str, dict] = {
         ],
         "replies_allowed": True,
     },
+    # Hospitality: one type covering hotels, motels, inns and other places people stay overnight.
+    "hospitality": {
+        "label": "Hotels & lodging", "group": "Hospitality", "available": True, "default_aov": 180,
+        "description": "Hotels, motels and inns: room cleanliness, check-in, sleep quality, staff, location and fees.",
+        "subratings": False,
+        # Yelp lists many hotels. Restaurant and delivery apps do not apply to a place to stay.
+        "integrations": {"recommended": ["yelp"], "optional": [], "hidden": ["opentable", "doordash", "ubereats", "grubhub"]},
+        "kpis": [{"id": "cleanliness", "label": "Room cleanliness", "kind": "theme", "key": "cleanliness"}, {"id": "checkin", "label": "Check-in & check-out", "kind": "theme", "key": "checkin"}, {"id": "sleep", "label": "Beds, noise & sleep", "kind": "theme", "key": "sleep"}, {"id": "value", "label": "Price & fees", "kind": "theme", "key": "value"}],
+        "themes": [
+            _t("cleanliness", "Room cleanliness", ["clean", "dirty", "filthy", "stains", "stained", "hair", "smell", "smelled", "musty", "housekeeping", "bed bugs", "bedbugs", "cockroach", "mold"]),
+            _t("checkin", "Check-in & check-out", ["check-in", "check in", "checkin", "check-out", "check out", "checkout", "front desk", "key card", "room wasn't ready", "early check", "late check", "waited for our room"]),
+            _t("sleep", "Beds, noise & sleep", ["bed", "mattress", "pillow", "pillows", "sheets", "comfortable", "uncomfortable", "noisy", "loud", "thin walls", "couldn't sleep", "slept"]),
+            _t("staff", "Staff & service", ["staff", "friendly", "helpful", "unhelpful", "rude", "concierge", "manager", "attentive", "welcoming", "ignored"]),
+            _t("location", "Location & parking", ["location", "walkable", "walking distance", "parking", "valet", "close to", "downtown", "airport", "shuttle", "neighborhood"]),
+            _t("amenities", "Pool, gym & amenities", ["pool", "gym", "fitness", "hot tub", "spa", "wifi", "wi-fi", "elevator", "air conditioning", "ac", "heating", "ice machine"]),
+            _t("breakfast", "Breakfast & dining", ["breakfast", "buffet", "continental", "coffee", "restaurant", "bar", "room service", "food"]),
+            _t("value", "Price & fees", ["price", "expensive", "overpriced", "worth", "value", "resort fee", "hidden fee", "extra charge", "charged", "deposit", "parking fee"]),
+        ],
+        "replies_allowed": True,
+    },
     # (Healthcare segments follow below, added after the dict is built.)
 }
 

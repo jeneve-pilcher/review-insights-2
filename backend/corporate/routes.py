@@ -15,7 +15,7 @@ from analysis.delivery_clients import normalize_doordash_url, normalize_grubhub_
 from analysis.opentable_client import normalize_opentable_url
 from analysis.yelp_client import normalize_yelp_url
 from auth import CurrentUser, get_current_user
-from corporate import metrics, monitor
+from corporate import billing_report, bulk_members, metrics, monitor, org_billing
 from corporate.permissions import can, can_act_on_location, can_see_location
 from corporate.schemas import (
     AlertUpdate,
@@ -43,7 +43,7 @@ internal_router = APIRouter(prefix="/api/internal", tags=["internal"])
 ALLOWED_TIERS = {t.strip() for t in os.environ.get("ORG_ALLOWED_TIERS", "pro,enterprise").split(",") if t.strip()}
 # An optional monthly spending limit (dollars of credit) for new companies. 0 or blank = no limit.
 DEFAULT_LIMIT_USD = float(os.environ.get("DEFAULT_MONTHLY_LIMIT_USD", "0") or 0) or None
-MAX_LOCATIONS = int(os.environ.get("MAX_LOCATIONS_PER_ORG", "500"))
+MAX_LOCATIONS = int(os.environ.get("MAX_LOCATIONS_PER_ORG", "5000"))
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -156,13 +156,58 @@ def _enforce_budget(member: dict) -> None:
 @router.post("")
 def create_org(req: OrgCreate, current_user: CurrentUser = Depends(get_current_user)):
     store = get_store()
-    if current_user.tier not in ALLOWED_TIERS:
-        raise HTTPException(status_code=403, detail="Multi-location features need a Pro or Enterprise plan.")
+    if current_user.tier not in ALLOWED_TIERS and not billing_report.has_contract(store, current_user.email):
+        raise HTTPException(status_code=403, detail="Company accounts need a Pro or Enterprise plan, or a contract for your email domain.")
     if store.find_membership(current_user.id, current_user.email):
         raise HTTPException(status_code=400, detail="You're already part of an organization.")
     org = store.create_org(req.name.strip(), current_user.id, current_user.email, DEFAULT_LIMIT_USD)
     store.add_audit(org["id"], current_user.id, current_user.email.lower(), "org_create", org["name"], {})
     return {"id": org["id"], "name": org["name"]}
+
+
+def _billing_view(member: dict):
+    """The owner sees what the contract bills for their company: locations in use and the monthly amount."""
+    if member.get("role") != "owner":
+        return None
+    try:
+        line = billing_report.for_org(get_store(), member["org"])
+    except Exception:                                  # noqa: BLE001  (e.g. the contracts table hasn't been created yet)
+        return None
+    org = member["org"]
+    line["subscription"] = {"live": org_billing.is_live(org), "status": org.get("billing_status"),
+                            "has_customer": bool(org.get("stripe_customer_id")), "required": org_billing.required()}
+    return line
+
+
+def _require_billing(member: dict) -> None:
+    """New locations are only added once the company's billing is set up (REQUIRE_ORG_BILLING=false turns this off)."""
+    if not org_billing.required() or org_billing.is_live(member["org"]) or billing_report.is_admin(member.get("email")):
+        return
+    raise HTTPException(status_code=402, detail="Set up billing first: the owner can do this on the Billing tab.")
+
+
+@router.post("/billing/checkout")
+def billing_checkout(member: dict = Depends(get_member)):
+    if member["role"] != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can set up billing.")
+    try:
+        return {"url": org_billing.checkout_url(get_store(), member["org"], member["email"])}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:                           # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Could not start checkout: {exc}")
+
+
+@router.post("/billing/portal")
+def billing_portal(member: dict = Depends(get_member)):
+    if member["role"] != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can manage billing.")
+    try:
+        return {"url": org_billing.portal_url(member["org"])}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:                           # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Could not open billing: {exc}")
 
 
 @router.get("")
@@ -174,6 +219,7 @@ def get_org(member: dict = Depends(get_member)):
                 "industry": org.get("industry") or industries.DEFAULT, "white_label": bool(org.get("white_label")),
                 "pack": industries.public_pack(industries.get_pack(org.get("industry"))),
                 "provider_data_enabled": bool(org.get("provider_data_enabled")),
+                "sso_domain": org.get("sso_domain"),
                 "branding": public_branding(org)},
         "role": member["role"],
         "email": member["email"],
@@ -183,6 +229,8 @@ def get_org(member: dict = Depends(get_member)):
         "usage": monitor.usage_status(store, org),
         "limits": {"max_locations": MAX_LOCATIONS, "monitor_interval_hours": monitor.INTERVAL_HOURS,
                    "monitor_months": monitor.MONITOR_MONTHS},
+        # Per-location billing: only the owner sees it.
+        "billing": _billing_view(member),
     }
 
 
@@ -223,6 +271,21 @@ def add_member(req: MemberAdd, member: dict = Depends(get_member)):
         raise HTTPException(status_code=400, detail=f"{email} is already on the team.")
     _audit(member, "member_add", email, {"role": req.role})
     return row
+
+
+@router.post("/members/import")
+def import_members(req: ImportRequest, send_invites: bool = True, member: dict = Depends(get_member)):
+    """Add many people from a CSV (email, role), optionally emailing each a sign-up invitation."""
+    _require(member, "manage_members")
+    try:
+        rows, _ = bulk_members.parse(req.csv_text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    result = bulk_members.run(get_store(), member["org_id"], can(member, "manage_admins"), rows, send_invites,
+                              f"{config.FRONTEND_URL}/login?invited=1", DuplicateMember,
+                              sso_domain=member["org"].get("sso_domain") or "")
+    _audit(member, "members_import", None, {"added": result["added"], "skipped": len(result["skipped"]), "invites": result["invites_sent"]})
+    return result
 
 
 def _get_target_member(member: dict, member_id: str) -> dict:
@@ -311,12 +374,14 @@ def list_locations(member: dict = Depends(get_member)):
 def add_location(req: LocationIn, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
     store = get_store()
+    _require_billing(member)
     if len(store.list_locations(member["org_id"])) >= MAX_LOCATIONS:
         raise HTTPException(status_code=400, detail=f"This organization is at its limit of {MAX_LOCATIONS} locations.")
     data = _validate_location(_fields(req), member)
     if not data.get("name") or not data.get("google_query"):
         raise HTTPException(status_code=400, detail="A name and a Google search (name + address) are required.")
     loc = store.add_location(member["org_id"], data)
+    org_billing.sync_quantity(store, member["org_id"])
     _audit(member, "location_add", loc["name"], {})
     return _location_row(loc, None, 0, _show_provider_names(member))
 
@@ -350,6 +415,7 @@ def parse_locations_csv(text: str):
 @router.post("/locations/import")
 def import_locations(req: ImportRequest, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
+    _require_billing(member)
     store = get_store()
     try:
         rows, _ = parse_locations_csv(req.csv_text)
@@ -381,8 +447,11 @@ def import_locations(req: ImportRequest, member: dict = Depends(get_member)):
         seen.add(key)
         added += 1
 
+    if added:
+        org_billing.sync_quantity(store, member["org_id"])
     _audit(member, "locations_import", None, {"added": added, "skipped": len(skipped)})
-    return {"added": added, "skipped": skipped}
+    if added:
+        return {"added": added, "skipped": skipped}
 
 
 @router.patch("/locations/{location_id}")
@@ -403,6 +472,7 @@ def delete_location(location_id: str, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
     loc = _get_location(member, location_id)
     get_store().delete_location(location_id)
+    org_billing.sync_quantity(get_store(), member["org_id"])
     _audit(member, "location_delete", loc["name"], {})
     return {"deleted": True}
 

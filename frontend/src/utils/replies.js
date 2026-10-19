@@ -2,10 +2,10 @@
 
 export const FILTERS = [
   { id: 'all', label: 'All' },
+  { id: 'low', label: 'Bad reviews (1–2★)' },
+  { id: 'high', label: 'Good reviews (4–5★)' },
+  { id: 'mid', label: 'Okay (3★)' },
   { id: 'needs_reply', label: 'Needs a reply' },
-  { id: 'low', label: '1–2★' },
-  { id: 'mid', label: '3★' },
-  { id: 'high', label: '4–5★' },
   { id: 'replied', label: 'Replied' },
   { id: 'web', label: 'No stars (web, Uber Eats)' },
 ]

@@ -8,6 +8,7 @@ import IndustryShowcase from '../components/IndustryShowcase.vue'
 import PricingCard from '../components/PricingCard.vue'
 import RevenueSection from '../components/RevenueSection.vue'
 import RolesSection from '../components/RolesSection.vue'
+import LocationPricing from '../components/LocationPricing.vue'
 import StatsStrip from '../components/StatsStrip.vue'
 import { readQuery } from '../utils/startFlow'
 
@@ -83,7 +84,7 @@ onMounted(() => {
       <h1>Uncover where revenue may be slipping away</h1>
       <p>
         We read your reviews for the patterns that cost you customers: waits at certain hours, a repeating complaint, a
-        drifting rating. See what to look at first, location by location, with graphs built for your industry.
+        drifting rating. See what to look at first, with graphs built for your industry.
       </p>
       <button class="run-btn" @click="scrollToSection('industries')">Choose your industry</button>
       <p class="landing-fineprint">Revenue figures are estimates from review patterns, not your sales.</p>
@@ -126,10 +127,13 @@ onMounted(() => {
         <PricingCard
           title="Enterprise"
           price="Custom"
-          :features="['Everything in Pro', 'Custom competitor limits', 'Dedicated support', 'Custom integrations']"
+          :features="['Everything in Pro', 'Volume pricing by location', 'Custom competitor limits', 'Dedicated support']"
           cta-label="Contact sales"
           @cta="chooseEnterprise"
         />
+      </div>
+      <div class="landing-location-pricing">
+        <LocationPricing quiet />
       </div>
     </section>
 
@@ -244,5 +248,9 @@ onMounted(() => {
 #start,
 #pricing {
   scroll-margin-top: 64px;
+}
+.landing-location-pricing {
+  max-width: 480px;
+  margin: 24px auto 0;
 }
 </style>

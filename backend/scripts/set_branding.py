@@ -37,7 +37,7 @@ def main():
     p.add_argument("--name", help="brand name shown in the app and on the login page")
     p.add_argument("--logo", help="https:// link to the logo image")
     p.add_argument("--sso-domain", help="the company's email domain, e.g. acme.com")
-    p.add_argument("--industry", help="casual_dining, fine_dining, general, urgent_care, dental or primary_care")
+    p.add_argument("--industry", help="casual_dining, fine_dining, hospitality, retail, general, urgent_care, dental or primary_care")
     p.add_argument("--providers", choices=["on", "off"], help="turn provider-level (individual doctor) data on or off for this company")
     a = p.parse_args()
 

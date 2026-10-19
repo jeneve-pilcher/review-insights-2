@@ -21,6 +21,7 @@ import ToneVsStarsChart from './ToneVsStarsChart.vue'
 const props = defineProps({
   locationId: { type: String, required: true },
   info: { type: Object, default: null },
+  embedded: { type: Boolean, default: false },   // shown on the main dashboard: no "back to all locations" button
 })
 const repliesOff = computed(() => props.info?.org?.pack?.replies_allowed === false)
 const providersOn = computed(() => Boolean(props.info?.org?.provider_data_enabled && props.info?.org?.pack?.provider_level))
@@ -106,7 +107,7 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
 
 <template>
   <div>
-    <button class="oc-btn" style="margin-bottom: 12px" @click="emit('back')">← Back to all locations</button>
+    <button v-if="!embedded" class="oc-btn" style="margin-bottom: 12px" @click="emit('back')">← Back to all locations</button>
 
     <p v-if="loading" class="status">Loading…</p>
     <p v-else-if="error" class="status error">{{ error }}</p>

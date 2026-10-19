@@ -109,6 +109,18 @@ async def stripe_webhook(request: Request):
     # once up front lets the rest of this function use normal dict access.
     obj = raw_obj.to_dict() if hasattr(raw_obj, "to_dict") else dict(raw_obj)
 
+    # A company's location subscription carries org_id in its metadata; a person's Pro subscription carries user_id.
+    org_id = (obj.get("metadata") or {}).get("org_id")
+    if org_id:
+        from corporate import org_billing
+        from corporate.store import get_store
+        if event_type == "checkout.session.completed":
+            org_billing.record_subscription(get_store(), org_id, obj.get("customer"), obj.get("subscription"), "active")
+        elif event_type in ("customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"):
+            status_value = "canceled" if event_type == "customer.subscription.deleted" else obj.get("status")
+            org_billing.record_subscription(get_store(), org_id, obj.get("customer"), obj.get("id"), status_value)
+        return {"received": True}
+
     if event_type == "checkout.session.completed":
         user_id = (obj.get("metadata") or {}).get("user_id") or obj.get("client_reference_id")
         customer_id = obj.get("customer")

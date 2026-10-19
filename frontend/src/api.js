@@ -84,6 +84,11 @@ export async function createPortalSession() {
   return data
 }
 
+export async function fetchLocationPricing() {
+  const { data } = await api.get('/api/pricing/locations')
+  return data
+}
+
 export async function submitEnterpriseContact(payload) {
   const { data } = await api.post('/api/enterprise-contact', payload)
   return data
@@ -93,6 +98,8 @@ export async function submitEnterpriseContact(payload) {
 export const orgApi = {
   async get() { return (await api.get('/api/org')).data },
   async create(name) { return (await api.post('/api/org', { name })).data },
+  async billingCheckout() { return (await api.post('/api/org/billing/checkout')).data },
+  async billingPortal() { return (await api.post('/api/org/billing/portal')).data },
   async setIndustry(industry) {
     return (await api.put('/api/org/industry', { industry })).data
   },
@@ -109,6 +116,7 @@ export const orgApi = {
     return (await api.patch('/api/org/budget', { monthly_budget_usd: monthlyBudgetUsd })).data
   },
 
+  async importMembers(csvText, sendInvites = true) { return (await api.post('/api/org/members/import', { csv_text: csvText }, { params: { send_invites: sendInvites } })).data },
   async addMember(email, role) { return (await api.post('/api/org/members', { email, role })).data },
   async updateMember(id, role) { return (await api.patch(`/api/org/members/${id}`, { role })).data },
   async removeMember(id) { return (await api.delete(`/api/org/members/${id}`)).data },
@@ -167,4 +175,20 @@ export async function setIndustry(industry) {
 export async function acceptTerms(version) {
   const { data } = await api.post('/api/me/accept-terms', { version })
   return data
+}
+
+// Operator billing page (only works for emails in ADMIN_EMAILS on the server).
+export const adminApi = {
+  async billing() { return (await api.get('/api/admin/billing')).data },
+  async saveContract(domain, body) { return (await api.put(`/api/admin/billing/contracts/${encodeURIComponent(domain)}`, body)).data },
+  async deleteContract(domain) { return (await api.delete(`/api/admin/billing/contracts/${encodeURIComponent(domain)}`)).data },
+  async exportCsv() {
+    const res = await api.get('/api/admin/billing/export.csv', { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'location-billing.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }

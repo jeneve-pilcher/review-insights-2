@@ -36,7 +36,7 @@ If `git status` lists a `.env` file, stop and run `git rm --cached backend/.env 
 
 1. SQL Editor: paste and run `backend/supabase/schema.sql`, then paste and run `backend/supabase/corporate.sql` (all of it). Running them again later is safe.
 2. Authentication -> Providers -> Email: decide on "Confirm email". On means people must click an email link before logging in (recommended for a real launch).
-3. Authentication -> URL Configuration: set **Site URL** and add a **Redirect URL** for your final website address (`https://your-site.onrender.com` for now, your own domain later). If this is wrong, confirmation links and sign-in redirects fail.
+3. Authentication -> URL Configuration: set **Site URL** and add a **Redirect URL** for your final website address (`https://your-site.onrender.com` for now, your own domain later). If this is wrong, confirmation links and sign-in redirects fail. For team invitations (bulk add) also add `https://your-site.onrender.com/login` as a Redirect URL, and set up your own SMTP under Authentication -> SMTP settings, because Supabase's built-in sender only allows a few emails an hour.
 4. Project Settings -> API: note the Project URL, the `anon` key, the `service_role` key and the JWT secret.
 
 ## 3. Stripe (test mode)
@@ -61,6 +61,10 @@ Keep every Stripe value in the same mode. A test secret key with a live price ID
 | `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID_PRO` | Stripe, step 3 |
 | `STRIPE_WEBHOOK_SECRET` | Leave blank for now (step 8) |
 | `CORS_ORIGINS`, `FRONTEND_URL` | Leave blank for now (step 7) |
+| `REQUIRE_ORG_BILLING` | Optional. `false` lets companies add locations before billing is set up (testing only). Default on |
+| `SALES_EMAIL` | Where Contact sales requests are emailed. Needs the `SMTP_*` settings below to actually send. Defaults to jenevepilcher189@gmail.com |
+| `ADMIN_EMAILS` | Your login email(s), comma-separated. Unlocks the operator Billing section (locations per email domain, contracts) |
+| `LOCATION_PRICE_TIERS` | Optional. Per-location prices for companies, e.g. `1:49,250:39,500:29,1000:19`. Defaults are placeholders |
 | `SMTP_*` | Optional. Blank means alert emails are only written to the log |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | Supabase (the anon key is the public one, never the service-role key) |
 | `VITE_API_BASE_URL` | Leave blank for now (step 6) |
@@ -93,7 +97,7 @@ Save. The backend restarts by itself. (If CORS is wrong you will see "blocked by
 3. Events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`.
 4. Copy the **signing secret** (`whsec_...`) into the backend's `STRIPE_WEBHOOK_SECRET`, save, and let it restart.
 
-Credit-pack purchases do not use the webhook; the app confirms them itself.
+Credit-pack purchases do not use the webhook; the app confirms them itself. Company per-location subscriptions use this same webhook and the same four events.
 
 ## 9. Test it end to end
 

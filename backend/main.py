@@ -23,6 +23,11 @@ from corporate.store import get_store
 from credits import rates as credit_rates, wallet
 from credits.routes import router as credits_router
 from corporate.routes import internal_router, router as org_router
+from corporate.admin_routes import router as admin_billing_router
+from corporate import billing_report
+from corporate import pricing
+import contact_sales
+from email_alerts import send_email
 from replies import router as replies_router
 from schemas import (
     AcceptTermsRequest,
@@ -47,6 +52,7 @@ app.add_middleware(
 
 app.include_router(billing_router)
 app.include_router(org_router)
+app.include_router(admin_billing_router)
 app.include_router(internal_router)
 app.include_router(replies_router)
 app.include_router(credits_router)
@@ -64,6 +70,12 @@ def _start_monitor():
     monitor.start_scheduler()
 
 
+@app.get("/api/pricing/locations")
+def location_pricing():
+    """Public: the per-location price table for companies (no sign-in needed, used by the calculator on the Enterprise page)."""
+    return {"tiers": pricing.tiers()}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -76,10 +88,16 @@ def me(current_user: CurrentUser = Depends(get_current_user)):
         membership = get_store().find_membership(current_user.id, current_user.email)
     except Exception:
         membership = None   # the company tables haven't been created yet: carry on as a single-business account
+    try:
+        has_contract = billing_report.has_contract(get_store(), current_user.email)
+    except Exception:
+        has_contract = False
     return {
         "id": current_user.id,
         "email": current_user.email,
         "tier": current_user.tier,
+        "has_contract": has_contract,        # their email domain has a contract: they may create a company without Pro
+        "is_admin": billing_report.is_admin(current_user.email),
         "business_location": current_user.business_location,
         "yelp_url": profile.get("yelp_url"),
         "opentable_url": profile.get("opentable_url"),
@@ -389,6 +407,16 @@ def analyze_all(
 # ---------------------------------------------------------
 @app.post("/api/enterprise-contact")
 def enterprise_contact(req: EnterpriseContactRequest):
-    # No email/CRM integration wired up yet - this just acknowledges receipt.
-    print(f"[enterprise-contact] {req.name} <{req.email}> ({req.company_name}): {req.message}")
+    try:
+        fields = contact_sales.build(req.name, req.email, req.company_name, req.message)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    # Not limited per IP: behind the host's proxy every visitor can share one address. Limited per sender and overall instead.
+    if not contact_sales.allow("email:" + fields["email"].lower()) or not contact_sales.allow("all", limit=contact_sales.ALL_PER_HOUR):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+
+    def save(f):
+        get_supabase_admin().table("contact_requests").insert(f).execute()
+
+    contact_sales.submit(fields, send_email, save)
     return {"received": True}

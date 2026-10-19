@@ -96,7 +96,7 @@ export function describeAudit(entry) {
 }
 
 // Which tabs a person sees, given what the server says they can do.
-export function visibleTabs(can) {
+export function visibleTabs(can, hasBilling = false) {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'locations', label: 'Locations' },
@@ -105,6 +105,7 @@ export function visibleTabs(can) {
   ]
   if (can?.manage_members) tabs.push({ id: 'team', label: 'Team' })
   if (can?.view_audit) tabs.push({ id: 'activity', label: 'Activity' })
+  if (hasBilling) tabs.push({ id: 'billing', label: 'Billing' })
   return tabs
 }
 

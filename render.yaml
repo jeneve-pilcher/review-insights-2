@@ -50,6 +50,18 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      # Set to false only for testing: lets companies add locations before billing is set up.
+      - key: REQUIRE_ORG_BILLING
+        value: "true"
+      # Where Enterprise "Contact sales" requests are emailed (defaults to jenevepilcher189@gmail.com).
+      - key: SALES_EMAIL
+        value: "jenevepilcher189@gmail.com"
+      # Logins allowed to see the operator Billing section.
+      - key: ADMIN_EMAILS
+        sync: false
+      # Company per-location prices, as first-location:dollars pairs. Optional; defaults are placeholders.
+      - key: LOCATION_PRICE_TIERS
+        sync: false
       # Scheduled checks run inside this one instance. Keep it a single always-on instance.
       - key: ENABLE_SCHEDULER
         value: "true"

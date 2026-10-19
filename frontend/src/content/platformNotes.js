@@ -7,6 +7,8 @@ export const UNAVAILABLE = {
   facebook: { label: 'Facebook', reason: 'terms', why: 'Meta bars collecting data from its products by automated means' },
   amazon: { label: 'Amazon', reason: 'terms', why: 'its conditions of use restrict data mining, robots and similar extraction tools' },
   bbb: { label: 'Better Business Bureau', reason: 'terms', why: 'its terms limit use to personal, non-commercial use and bar compiling its data' },
+  booking: { label: 'Booking.com', reason: 'nosource', why: 'we have no approved data source for it yet' },
+  expedia: { label: 'Expedia', reason: 'nosource', why: 'we have no approved data source for it yet' },
   trustpilot: { label: 'Trustpilot', reason: 'nosource', why: 'we have no approved data source for it yet' },
   healthgrades: { label: 'Healthgrades', reason: 'nosource', why: 'we have no approved data source for it yet' },
   vitals: { label: 'Vitals', reason: 'nosource', why: 'we have no approved data source for it yet' },
@@ -23,6 +25,7 @@ export const UNAVAILABLE_BY_INDUSTRY = {
   primary_care: CLINIC,
   general: ['facebook', 'bbb', 'trustpilot'],
   retail: ['facebook', 'amazon', 'trustpilot', 'bbb'],
+  hospitality: ['tripadvisor', 'booking', 'expedia', 'facebook'],
 }
 
 export function unavailableFor(industryId) {

@@ -1,7 +1,7 @@
 // What the front page says about each industry. The facts (labels, themes, data sources, what's switched on) mirror the
 // server's industry list; a test fails if the two ever disagree. Everything else is marketing copy: it describes what is
 // actually built and promises no outcomes.
-export const GROUP_ORDER = ['Restaurants', 'Healthcare', 'Other', 'Retail']
+export const GROUP_ORDER = ['Restaurants', 'Healthcare', 'Other', 'Retail', 'Hospitality']
 
 export const SOURCE_NAMES = { yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', ubereats: 'Uber Eats', grubhub: 'Grubhub' }
 
@@ -9,8 +9,7 @@ export const EVERY_INDUSTRY = [
   "Sentiment drift: weekly review volume and tone, with early-warning flags",
   "Revenue signals in plain English: what is worth acting on first (Pro)",
   "Your industry's trends, flagged only when there is enough evidence",
-  "Negative reviews become tasks you can assign and track (Pro)",
-  "Many locations? A company view with benchmarks, tasks and a team (Pro and Enterprise)"
+  "Negative reviews flagged on your dashboard, and draft replies to reviews outside healthcare (Pro)"
 ]
 
 export const INDUSTRIES = [
@@ -35,7 +34,7 @@ export const INDUSTRIES = [
       "A wait-time heatmap by day and hour, with the revenue estimated to be at stake",
       "Your themes week by week: waits, order mistakes, portions and value, takeout and delivery",
       "Google, Yelp, DoorDash, Uber Eats and Grubhub side by side",
-      "Negative reviews turned into tasks, tagged with what they're about"
+      "Negative reviews flagged and tagged with what they're about"
     ],
     "integrations": {
       "recommended": [
@@ -158,7 +157,7 @@ export const INDUSTRIES = [
       "OpenTable food, service, ambience and value scores over time",
       "Your themes week by week: pacing between courses, ambiance and noise, value for price, special occasions, wine",
       "OpenTable, Yelp and Google side by side",
-      "Negative reviews turned into tasks, tagged with what they're about"
+      "Negative reviews flagged and tagged with what they're about"
     ],
     "integrations": {
       "recommended": [
@@ -281,7 +280,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: waits, quoted versus actual times, billing and insurance, provider communication, testing",
       "Compare clinics side by side and see which one stands out on each theme",
-      "Negative reviews turned into tasks, tagged with what they're about",
+      "Negative reviews flagged and tagged with what they're about",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -416,7 +415,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: scheduling, comfort and gentleness, explaining treatment, billing and insurance, cleanliness",
       "Compare practices side by side and see which one stands out on each theme",
-      "Negative reviews turned into tasks, tagged with what they're about",
+      "Negative reviews flagged and tagged with what they're about",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -550,7 +549,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: getting appointments, follow-up and results, phone and portal, bedside manner, billing",
       "Compare practices side by side and see which one stands out on each theme",
-      "Negative reviews turned into tasks, tagged with what they're about",
+      "Negative reviews flagged and tagged with what they're about",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -671,7 +670,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: service, quality, price and value, waits, cleanliness",
       "Google and Yelp side by side",
-      "Negative reviews turned into tasks, tagged with what they're about"
+      "Negative reviews flagged and tagged with what they're about"
     ],
     "integrations": {
       "recommended": [
@@ -762,7 +761,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: stock, checkout lines, returns, price, staff help",
       "Google and Yelp side by side",
-      "Negative reviews turned into tasks, tagged with what they're about"
+      "Negative reviews flagged and tagged with what they're about"
     ],
     "integrations": {
       "recommended": [
@@ -861,6 +860,128 @@ export const INDUSTRIES = [
           "pick up",
           "curbside",
           "delivery"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "hospitality",
+    "label": "Hotels & lodging",
+    "group": "Hospitality",
+    "available": true,
+    "blurb": "Hotels, motels & inns",
+    "pitch": "Room cleanliness, check-in, sleep, staff, location and fees.",
+    "themes": [
+      "Room cleanliness",
+      "Check-in & check-out",
+      "Beds, noise & sleep",
+      "Staff & service",
+      "Location & parking",
+      "Pool, gym & amenities",
+      "Breakfast & dining",
+      "Price & fees"
+    ],
+    "graphs": [
+      "Your themes week by week: cleanliness, check-in, sleep, staff, price and fees",
+      "Google and Yelp side by side",
+      "Negative reviews flagged and tagged with what they're about"
+    ],
+    "integrations": {
+      "recommended": [
+        "yelp"
+      ],
+      "optional": [],
+      "hidden": [
+        "opentable",
+        "doordash",
+        "ubereats",
+        "grubhub"
+      ]
+    },
+    "notes": [
+      "Draft replies to reviews, which you read and post yourself."
+    ],
+    "replies_allowed": true,
+    "provider_level": false,
+    "themeDetails": [
+      {
+        "label": "Room cleanliness",
+        "examples": [
+          "clean",
+          "dirty",
+          "filthy",
+          "stains",
+          "stained"
+        ]
+      },
+      {
+        "label": "Check-in & check-out",
+        "examples": [
+          "check-in",
+          "check in",
+          "checkin",
+          "check-out",
+          "check out"
+        ]
+      },
+      {
+        "label": "Beds, noise & sleep",
+        "examples": [
+          "bed",
+          "mattress",
+          "pillow",
+          "pillows",
+          "sheets"
+        ]
+      },
+      {
+        "label": "Staff & service",
+        "examples": [
+          "staff",
+          "friendly",
+          "helpful",
+          "unhelpful",
+          "rude"
+        ]
+      },
+      {
+        "label": "Location & parking",
+        "examples": [
+          "location",
+          "walkable",
+          "walking distance",
+          "parking",
+          "valet"
+        ]
+      },
+      {
+        "label": "Pool, gym & amenities",
+        "examples": [
+          "pool",
+          "gym",
+          "fitness",
+          "hot tub",
+          "spa"
+        ]
+      },
+      {
+        "label": "Breakfast & dining",
+        "examples": [
+          "breakfast",
+          "buffet",
+          "continental",
+          "coffee",
+          "restaurant"
+        ]
+      },
+      {
+        "label": "Price & fees",
+        "examples": [
+          "price",
+          "expensive",
+          "overpriced",
+          "worth",
+          "value"
         ]
       }
     ]

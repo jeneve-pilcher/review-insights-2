@@ -225,6 +225,24 @@ alter table public.organizations add column if not exists brand_accent text;
 alter table public.organizations add column if not exists brand_logo_url text;
 alter table public.organizations add column if not exists sso_domain text;
 alter table public.organizations add column if not exists industry text;
+-- Per-location billing (Stripe subscription whose quantity is the number of locations).
+alter table public.organizations add column if not exists stripe_customer_id text;
+alter table public.organizations add column if not exists stripe_subscription_id text;
+alter table public.organizations add column if not exists billing_status text;
+
+-- Enterprise contracts: one row per customer email domain. Used by the billing page (only the backend reads this table).
+create table if not exists public.billing_contracts (
+  domain text primary key,
+  company_name text,
+  minimum_locations integer not null default 0,
+  price_tiers text,
+  starts_on text,
+  ends_on text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.billing_contracts enable row level security;
 alter table public.profiles add column if not exists industry text;
 create unique index if not exists organizations_sso_domain_idx on public.organizations (lower(sso_domain)) where sso_domain is not null;
 
@@ -236,3 +254,15 @@ alter table public.organizations add column if not exists provider_data_enabled 
 alter table public.locations add column if not exists provider_links jsonb not null default '[]'::jsonb;
 alter table public.location_snapshots add column if not exists providers jsonb;
 alter table public.location_snapshots add column if not exists providers_checked_at timestamptz;
+
+
+-- Enterprise "Contact sales" requests are saved here as well as emailed, so none are lost if email is not set up.
+create table if not exists public.contact_requests (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  company_name text,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.contact_requests enable row level security;

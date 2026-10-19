@@ -79,6 +79,111 @@ WHAT CHANGED IN v30 (colour and pictures only; no wording or behaviour changes)
   Stripe test mode: you can cancel the extra test subscriptions and delete the extra test customers; nothing real is charged.
 
 - "ACCOUNT ALREADY EXISTS, LOG IN INSTEAD" on the sign-up page.
+NEW: COMPANIES ARE CHARGED BY LOCATION THROUGH STRIPE (contracts adjust the terms) - RUN THE SQL
+  1. Run the updated backend/supabase/corporate.sql in Supabase (organizations get stripe_customer_id, stripe_subscription_id, billing_status;
+     new billing_contracts table). Set ADMIN_EMAILS=you@yourcompany.com on the backend for the operator Billing section.
+  2. How a company is charged: the owner opens the Billing tab -> Set up billing -> Stripe Checkout. It is ONE monthly subscription per company.
+     The price is a VOLUME tiered price (every location pays the tier rate for the company's size), created in Stripe automatically from the tier table (no Stripe dashboard setup, no new price ID);
+     the quantity is the number of locations, set by the server from the database. Adding, importing or deleting locations updates the quantity in
+     Stripe and the difference is prorated on the next invoice. Stripe's own tier maths produces the charge, and the same table drives the
+     public calculator, so they agree. Owners manage the card / cancel from "Manage billing" (Stripe's portal).
+  3. Billing must be set up BEFORE adding locations (402 "Set up billing first"). REQUIRE_ORG_BILLING=false turns that rule off for testing;
+     logins in ADMIN_EMAILS skip it. Companies that already had locations are blocked from adding more until they set up billing.
+  4. Tiers (placeholders): ALL locations pay the rate for the company's size: 1-249 $49, 250-499 $39, 500-999 $29, 1,000+ $19. Override with
+     LOCATION_PRICE_TIERS=1:49,250:39,500:29,1000:19. 600 locations = 600 x $29 = $17,400 / month ($29 each). 1,000 = $19,000 ($19 each).
+     NO CLIFFS: nobody is billed more than they would be at the start of a bigger tier (a company is billed "as if" it had that many
+     locations when that costs less). Result: 199-250 locations all cost $9,750; 400-500 cost $14,500; 656-1,000 cost $19,000 (flat); then $19 each
+     above 1,000. Those flat stretches follow from your prices; change the prices if you do not want them. The Billing tab shows the locations billed.
+     Changing the table makes a NEW Stripe price (Stripe volume mode): companies already subscribed keep the price they signed up on. If you
+     subscribed any test company under the earlier graduated price, cancel it and set billing up again. Tiers are public on the landing
+     page (under Plans) and on the Enterprise contact page.
+  5. Contracts (operator section, per email domain): a minimum number of locations that is billed even when fewer are used, optional custom tiers,
+     dates, notes. They are applied when the customer FIRST sets up billing (the Stripe price and quantity come from them). Changing a contract
+     later does NOT change an existing subscription's price (the quantity minimum is still enforced on every sync). To change a live customer's
+     price, change it in the Stripe dashboard or cancel and re-subscribe.
+  6. A person whose email domain has a contract can create a company without buying Pro. gmail/outlook etc. cannot have contracts.
+  7. Webhook: the same Stripe webhook (checkout.session.completed + customer.subscription.created/updated/deleted) records each company's billing
+     status. Company subscriptions are recognised by org_id in the metadata; Pro subscriptions are unchanged.
+  8. NOT TESTED against Stripe or in a browser. Tested here: price/quantity logic and the Stripe calls using a stand-in for Stripe.
+     Test-mode run: create a company, Set up billing with card 4242 4242 4242 4242, add a location, and look in Stripe for the new quantity.
+  9. NOT built: lockout when payment fails or the subscription is cancelled (status is recorded; adding locations is blocked, existing locations keep
+     working); sales tax; the operator page shows the amount the tiers give, not what Stripe actually charged; if the Stripe quantity update fails it
+     is only logged and the next add/delete corrects it; Contact-sales form still only writes to the server log.
+ 10. If you unzipped an earlier v30, backend/corporate/org_billing.py is replaced by this version. MAX_LOCATIONS_PER_ORG default is 5,000.
+     Scheduled checks are paced by MAX_RUNS_PER_TICK (default 10 per 30 min); raise it for big customers.
+
+PRICE TABLE NEVER GOES BLANK ON THE PUBLIC PAGES
+  - The tier table + calculator (under Plans on the front page, and on the Enterprise page) now shows the standard prices straight away and
+    swaps in the server's table when it answers. Before, it hid itself if the backend could not be reached (for example a sleeping server
+    or no backend running locally). If you override LOCATION_PRICE_TIERS, also update STANDARD_TIERS in utils/locationPricing.js.
+  - If you do not see it, your LandingView.vue is older than this zip: LandingView.vue must be the one from this zip (it imports LocationPricing).
+
+CONTACT SALES NOW GOES TO YOUR EMAIL (needs SMTP) AND IS SAVED
+  - The Enterprise "Contact sales" form emails the request to SALES_EMAIL (default jenevepilcher189@gmail.com; set the env var to change it)
+    with the sender's address in the body, and ALSO saves it in a new table, contact_requests: RUN THE UPDATED backend/supabase/corporate.sql.
+  - IT ONLY EMAILS IF SMTP IS SET UP: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM on the backend (SendGrid, Postmark, SES,
+    or a Gmail app password all work). Without them nothing is emailed: the request is only saved in the table and printed in the server log.
+    Look in Supabase -> Table editor -> contact_requests to check. These are the same settings as alert emails.
+  - Abuse limits: 5 per sender email per hour and 40 in total per hour; fields are length-capped and cleaned. Edited: main.py, new
+    contact_sales.py, EnterpriseContactView.vue (shows the server's message). Tested with stand-ins for email and the database, not for real.
+
+REPLIES: GOOD / BAD REVIEW FILTERS, AND THE FRONT PAGE NO LONGER SAYS "MARKED SENT"
+  - Reviews & draft replies (single dashboard and company locations) now has filter buttons right after All: "Bad reviews (1-2 stars)" and
+    "Good reviews (4-5 stars)", then Okay (3 stars), Needs a reply, Replied. They work with the existing platform dropdown and show counts.
+    Good/bad is decided by the star rating, not by the wording. Edited: utils/replies.js (labels and order only).
+  - Front page: the revenue card and the experience-lead role card no longer mention marking replies sent. The in-app "Mark as sent"
+    button, the Replied filter and the Terms wording about it are unchanged.
+
+HOSPITALITY IS NOW BUILT (one type: Hotels & lodging)
+  - backend/analysis/industries.py: "hospitality" with 8 themes (room cleanliness, check-in and check-out, beds/noise/sleep, staff, location and
+    parking, pool/gym/amenities, breakfast and dining, price and fees) and 4 headline numbers. Yelp is recommended; OpenTable and the delivery apps
+    are hidden (they do not apply to a place to stay). Reply drafts are on. Starting average booking value is $180: a PLACEHOLDER, edit it.
+  - frontend/src/content/industries.js mirrors it (checked by comparing the two); new "Hospitality" group on the front page (orange tint in
+    IndustryShowcase.vue). platformNotes.js: Tripadvisor and Facebook (terms bar automated collection) plus Booking.com and Expedia (no approved
+    data source yet; I have NOT claimed their terms forbid it) are listed as not available for hotels.
+  - The theme word lists are my own starting set, not tuned on real hotel reviews. The "average order value" box is called that for hotels too.
+  - Back up LandingView.vue first as usual (this change does not touch it).
+
+NEW: ADD MANY PEOPLE AT ONCE (bulk logins by spreadsheet)
+  - Company dashboard -> Team -> "Add many people from a spreadsheet (CSV)". Columns: email (required), role (admin / manager / viewer; blank =
+    viewer). Up to 200 per upload. Each valid row is added to the team like the one-at-a-time form. With "Also email each person an
+    invitation" ticked, Supabase creates the login and emails a link; the person lands on a "Choose a password" screen (on /login?invited=1),
+    then the dashboard (they still accept the Terms there). Anyone who already has a login is just added. Bad rows are listed, not fatal.
+  - Backend: corporate/bulk_members.py, route POST /api/org/members/import. Frontend: OrgTeam.vue, LoginView.vue (password screen), api.js.
+  - YOU MUST DO, in Supabase: Authentication -> URL Configuration -> add <your frontend address>/login to Redirect URLs. Without it the link
+    in the invitation is rejected. Also: Supabase's built-in email sender allows only a few emails an hour; for a real roll-out add your own
+    SMTP under Authentication -> SMTP settings (SendGrid, Postmark, SES...). These invitations do NOT use this app's SMTP_* settings.
+  - Managers are still tied to locations by the manager email on each location. Importing people does not set that.
+  - NOT tested against Supabase or in a browser (the backend row handling was tested with a stand-in for Supabase). Single sign-on
+    (Supabase SSO by company domain) already exists on the login page. In bulk add, anyone whose email is on the company's SSO domain is added to the
+    team WITHOUT an invitation email (no password); they log in with "Continue with company SSO" and are matched by email on first sign-in.
+    The SSO domain is set by you with scripts/set_branding.py (--sso-domain), and the SSO connection itself in Supabase (Authentication ->
+    SSO, a paid Supabase feature). Not tested against a real SSO provider.
+
+NEW: MANAGERS SWITCH LOCATIONS ON THE MAIN DASHBOARD
+  - A person whose company role is "manager" now lands on the normal dashboard (not the Company page) with a Location dropdown at the top.
+    The list is only the locations whose manager_email is their login email (the server already enforces this). Picking one shows that
+    location's full dashboard (reviews and replies, language panels, charts). The last pick is remembered in that browser. Over 8 locations
+    adds a search box. If they also have their own business set up, "My own business" is an extra option.
+  - The Company tab stays available (renamed tab "My locations" for the dashboard side) for alerts/tasks.
+  - New: components/LocationSwitcher.vue. Changed: views/DashboardView.vue, components/LocationDetail.vue (embedded prop hides "Back").
+  - A manager is matched by email, so each location's manager_email must be the same email they sign up with.
+  - NOT tested in a browser (tags checked for balance only). Owners/admins/viewers still use the Company page.
+
+LANDING PAGE NOW SINGLE-BUSINESS ONLY (company page no longer advertised)
+  - "Who uses it" has 3 cards (owner/GM, marketing, guest/patient experience), each listing only things the single-business dashboard does,
+    with (Pro) where the dashboard locks it. Operations, location-manager and leadership cards are gone. Edited: content/roles.js,
+    RolesSection.vue subtitle, LandingView.vue (hero line, Enterprise card), content/industries.js (every-industry list), EnterpriseContactView.vue
+    (price table removed from that page; LocationPricing.vue stays in the zip, unused).
+  - Task assignment wording is gone from the landing page: the revenue card, experience role and every-industry list say "draft replies to reviews" (not healthcare); industry lists say
+    "Negative reviews flagged and tagged". The "A location falling behind" card was removed from the revenue section (content/revenue.js).
+  - The landing page no longer promises email alerts (they only send if SMTP_* is set on the backend). Terms/Privacy still mention alert emails
+    in cautious wording; the app still sends them when SMTP is configured.
+  - Location tier prices are public: a table + calculator under the Plans cards (LandingView.vue) and on the Enterprise contact page;
+    Enterprise card says "Volume pricing by location". Prices come from the backend (/api/pricing/locations); if it is unreachable the landing block hides.
+  - The app itself is NOT changed: paid users and invited members still see the Company tab and the manager location switcher.
+  - Competitors (up to 6) stay on the Pro card. Back up LandingView.vue before unzipping.
+
 REMOVED BEFORE HOSTING: AI SUMMARIES AND INTERNET MENTIONS (switched off, not deleted)
   - backend/features.py and frontend/src/content/features.js each hold two switches, both now false. Off means not shown, not run,
     not charged, and the mentions search is never called (even if an old browser tab asks for it).

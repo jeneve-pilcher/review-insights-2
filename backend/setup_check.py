@@ -14,6 +14,7 @@ COLUMN_PROBES = [
     ("organizations", "brand_primary"),
     ("organizations", "sso_domain"),
     ("organizations", "industry"),
+    ("billing_contracts", "domain"),
     ("profiles", "monthly_limit_usd"),
     ("profiles", "industry"),
     ("profiles", "terms_version"),

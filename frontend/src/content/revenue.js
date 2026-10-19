@@ -29,21 +29,12 @@ export const REVENUE_ITEMS = [
     plan: 'Included in Free',
   },
   {
-    id: 'locations',
-    icon: '📍',
-    tone: 'burnt',
-    title: 'A location falling behind',
-    look: 'Every location\'s themes and ratings, side by side.',
-    see: 'A theme-by-location grid and rankings: who to look at first.',
-    plan: 'Pro and Enterprise',
-  },
-  {
     id: 'followup',
     icon: '✅',
     tone: 'apricot',
     title: 'Negative reviews nobody followed up on',
     look: '1\u20132\u2605 reviews, tagged by topic.',
-    see: 'A task list to assign, note and resolve.',
+    see: 'Draft replies to reviews (not healthcare), and filter good and bad reviews.',
     plan: 'Pro',
   },
   {

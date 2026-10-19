@@ -14,6 +14,30 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
+// Someone invited by their company arrives from the emailed link already signed in and chooses a password here.
+const settingPassword = ref(false)
+const newPassword = ref('')
+const newPassword2 = ref('')
+const pwError = ref('')
+const pwLoading = ref(false)
+
+async function checkInvite() {
+  if (route.query.invited === undefined) return
+  const { data } = await supabase.auth.getSession()
+  if (data?.session) settingPassword.value = true
+}
+
+async function savePassword() {
+  pwError.value = ''
+  if (newPassword.value.length < 8) { pwError.value = 'Use at least 8 characters.'; return }
+  if (newPassword.value !== newPassword2.value) { pwError.value = 'The two passwords do not match.'; return }
+  pwLoading.value = true
+  const { error: upErr } = await supabase.auth.updateUser({ password: newPassword.value })
+  pwLoading.value = false
+  if (upErr) { pwError.value = upErr.message; return }
+  router.push('/dashboard')
+}
+
 const ssoEmail = ref('')
 const ssoError = ref('')
 const ssoLoading = ref(false)
@@ -25,6 +49,10 @@ const brandLogo = computed(() => safeLogo(branding.value))
 const brandName = computed(() => (branding.value ? brandTitle(branding.value) : ''))
 
 onMounted(() => {
+  checkInvite()
+  supabase.auth.onAuthStateChange((event) => {
+    if (route.query.invited !== undefined && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) settingPassword.value = true
+  })
   const saved = recallBrand() // a return visit starts branded, without a flash of the default look
   if (saved) {
     branding.value = saved
@@ -111,7 +139,25 @@ function handleBrandSso() {
 </script>
 
 <template>
-  <div class="auth-screen">
+  <div v-if="settingPassword" class="auth-screen">
+    <div class="auth-card">
+      <h2>Choose a password</h2>
+      <p>Welcome. Choose a password for your account. You'll use it with your email to log in.</p>
+      <form @submit.prevent="savePassword">
+        <label class="field">
+          <span>Password</span>
+          <input v-model="newPassword" type="password" autocomplete="new-password" minlength="8" required />
+        </label>
+        <label class="field">
+          <span>Repeat password</span>
+          <input v-model="newPassword2" type="password" autocomplete="new-password" minlength="8" required />
+        </label>
+        <p v-if="pwError" class="status error">{{ pwError }}</p>
+        <button class="run-btn" type="submit" :disabled="pwLoading">{{ pwLoading ? 'Saving…' : 'Save and continue' }}</button>
+      </form>
+    </div>
+  </div>
+  <div v-else class="auth-screen">
     <div class="auth-card">
       <div v-if="branding" class="brand-header" style="text-align: center; margin-bottom: 14px">
         <img v-if="brandLogo" :src="brandLogo" :alt="brandName" class="brand-logo" />

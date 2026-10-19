@@ -41,6 +41,7 @@ class MemoryStore:
         self.wallets: Dict[str, float] = {}
         self.ledger_rows: List[dict] = []
         self.purchases: Dict[str, dict] = {}
+        self.contracts: Dict[str, dict] = {}
 
     # ---- organizations & members
     def create_org(self, name, owner_id, owner_email, monthly_budget_usd=None):
@@ -196,6 +197,21 @@ class MemoryStore:
             return _copy(self.alerts[alert_id])
 
     # ---- audit & usage
+    # ---- enterprise contracts (one per email domain)
+    def list_contracts(self):
+        with self._lock:
+            return [_copy(c) for c in sorted(self.contracts.values(), key=lambda c: c["domain"])]
+
+    def save_contract(self, domain, fields):
+        with self._lock:
+            row = {**self.contracts.get(domain, {"domain": domain, "created_at": now_iso()}), **fields, "updated_at": now_iso()}
+            self.contracts[domain] = row
+            return _copy(row)
+
+    def delete_contract(self, domain):
+        with self._lock:
+            self.contracts.pop(domain, None)
+
     def add_audit(self, org_id, user_id, user_email, action, target=None, detail=None):
         with self._lock:
             self.audit_rows.append({"id": str(uuid.uuid4()), "org_id": org_id, "user_id": user_id,
@@ -466,6 +482,18 @@ class SupabaseStore:
         return self.get_alert(alert_id)
 
     # ---- audit & usage
+    # ---- enterprise contracts (one per email domain)
+    def list_contracts(self):
+        return self._rows(self._t("billing_contracts").select("*").order("domain").execute())
+
+    def save_contract(self, domain, fields):
+        row = {**fields, "domain": domain, "updated_at": now_iso()}
+        self._t("billing_contracts").upsert(row, on_conflict="domain").execute()
+        return self._one(self._t("billing_contracts").select("*").eq("domain", domain).limit(1).execute())
+
+    def delete_contract(self, domain):
+        self._t("billing_contracts").delete().eq("domain", domain).execute()
+
     def add_audit(self, org_id, user_id, user_email, action, target=None, detail=None):
         self._t("audit_log").insert({"org_id": org_id, "user_id": user_id, "user_email": user_email,
                                      "action": action, "target": target, "detail": detail or {}}).execute()

@@ -152,6 +152,7 @@ const touchExplainer = computed(() => {
 .grp-healthcare { --grp: #f59e0b; --grp-text: #92580a; }
 .grp-other { --grp: #c2410c; --grp-text: #9a3412; }
 .grp-retail { --grp: #ea580c; --grp-text: #9a3412; }
+.grp-hospitality { --grp: #fb923c; --grp-text: #9a3412; }
 
 .ind-group h3 {
   text-align: center;

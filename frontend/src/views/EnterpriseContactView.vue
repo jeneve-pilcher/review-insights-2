@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { submitEnterpriseContact } from '../api'
+import LocationPricing from '../components/LocationPricing.vue'
 
 const name = ref('')
 const email = ref('')
@@ -22,7 +23,7 @@ async function handleSubmit() {
     })
     submitted.value = true
   } catch (err) {
-    error.value = 'Something went wrong sending your message. Please try again.'
+    error.value = err?.response?.data?.detail || 'Something went wrong sending your message. Please try again.'
   } finally {
     loading.value = false
   }
@@ -31,11 +32,12 @@ async function handleSubmit() {
 
 <template>
   <div class="auth-screen">
-    <div class="auth-card" style="width: 420px">
+    <div class="auth-card" style="width: 460px; max-width: 100%">
       <h2>Enterprise</h2>
+      <LocationPricing />
 
       <template v-if="!submitted">
-        <p>Tell us about your use case and we'll follow up with custom pricing and scope.</p>
+        <p>Enterprise is set up as a contract and charged monthly through Stripe for the locations you use. These are the standard prices; a contract can set a minimum number of locations and its own prices. Tell us about your use case and we'll follow up.</p>
         <form @submit.prevent="handleSubmit">
           <label class="field">
             <span>Name</span>

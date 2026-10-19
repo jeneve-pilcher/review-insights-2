@@ -8,7 +8,7 @@ import CardArt from './CardArt.vue'
   <section id="who" class="roles-section">
    <div class="roles-inner">
     <h2>Who uses it</h2>
-    <p class="roles-sub">From one location to many, everyone sees what fits their job.</p>
+    <p class="roles-sub">One business, a few different jobs: each person looks at what fits theirs.</p>
 
     <div class="roles-grid">
       <article v-for="r in ROLES" :key="r.id" class="role-card" :class="`tone-${r.tone}`">

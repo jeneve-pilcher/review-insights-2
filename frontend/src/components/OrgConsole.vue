@@ -6,6 +6,7 @@ import { ROLE_LABELS, visibleTabs } from '../utils/orgFormat'
 import LocationDetail from './LocationDetail.vue'
 import OrgActivity from './OrgActivity.vue'
 import OrgBenchmarks from './OrgBenchmarks.vue'
+import OrgBilling from './OrgBilling.vue'
 import OrgLocations from './OrgLocations.vue'
 import OrgOverview from './OrgOverview.vue'
 import OrgSetup from './OrgSetup.vue'
@@ -48,7 +49,7 @@ async function refresh() {
 
 onMounted(load)
 
-const tabs = computed(() => visibleTabs(info.value?.can))
+const tabs = computed(() => visibleTabs(info.value?.can, Boolean(info.value?.billing)))
 </script>
 
 <template>
@@ -90,6 +91,7 @@ const tabs = computed(() => visibleTabs(info.value?.can))
         <OrgTasks v-else-if="tab === 'tasks'" :info="info" />
         <OrgTeam v-else-if="tab === 'team'" :info="info" @changed="refresh" />
         <OrgActivity v-else-if="tab === 'activity'" />
+        <OrgBilling v-else-if="tab === 'billing'" :info="info" />
       </template>
     </template>
   </section>

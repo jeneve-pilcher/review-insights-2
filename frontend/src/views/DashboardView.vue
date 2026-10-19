@@ -6,6 +6,8 @@ import LockedPanel from '../components/LockedPanel.vue'
 import MentionsPanel from '../components/MentionsPanel.vue'
 import NegativeReviewAlerts from '../components/NegativeReviewAlerts.vue'
 import OrgConsole from '../components/OrgConsole.vue'
+import LocationDetail from '../components/LocationDetail.vue'
+import LocationSwitcher from '../components/LocationSwitcher.vue'
 import PlatformComparison from '../components/PlatformComparison.vue'
 import CreditsPanel from '../components/CreditsPanel.vue'
 import IndustryPanel from '../components/IndustryPanel.vue'
@@ -28,6 +30,7 @@ import { applyBranding, brandTitle, forgetBrand, rememberBrand, safeLogo } from 
 import { billingLine } from '../utils/credits'
 import { REQUIRE_ACCEPTANCE, TERMS_VERSION, needsAcceptance } from '../legal/terms'
 import { supabase } from '../supabase'
+import AdminBilling from '../components/AdminBilling.vue'
 import { heatmapReadItems, negativeReadItems } from '../utils/nlpInsights'
 
 const router = useRouter()
@@ -53,6 +56,12 @@ const formRef = ref(null)
 
 // 'single' = your own business; 'company' = the multi-location console.
 const mode = ref('single')
+
+// Company managers switch between the locations they manage right here on the dashboard.
+const isManager = computed(() => me.value?.org_role === 'manager')
+const activeLocation = ref('')
+const orgInfo = ref(null)
+const showingLocation = computed(() => isManager.value && activeLocation.value && activeLocation.value !== 'own')
 
 const sentimentResult = ref(null)
 const waitTimeResult = ref(null)
@@ -86,7 +95,7 @@ onMounted(async () => {
   fetchIndustries().then((d) => { industries.value = d.industries }).catch(() => {})
   await loadMe()
   // Someone invited to a company who isn't on a paid plan lands in the company view.
-  if (me.value?.org_role && !isPaid()) mode.value = 'company'
+  if (me.value?.org_role && me.value.org_role !== 'manager' && !isPaid()) mode.value = 'company'
 })
 
 // First-time setup finished: the Google business, plus any review pages saved with it.
@@ -161,7 +170,7 @@ async function handleManageSubscription() {
 }
 
 const isPaid = () => me.value && ['pro', 'enterprise'].includes(me.value.tier)
-const showCompany = () => isPaid() || Boolean(me.value?.org_role)
+const showCompany = () => isPaid() || Boolean(me.value?.org_role) || Boolean(me.value?.has_contract)
 
 async function handleDeleteAccount() {
   const confirmed = window.confirm(
@@ -230,14 +239,21 @@ function handleUnifiedResult({ data }) {
 
     <template v-else-if="me">
       <div v-if="showCompany()" class="mode-tabs">
-        <button class="mode-tab" :class="{ active: mode === 'single' }" @click="mode = 'single'">My business</button>
+        <button class="mode-tab" :class="{ active: mode === 'single' }" @click="mode = 'single'">{{ isManager ? 'My locations' : 'My business' }}</button>
         <button class="mode-tab" :class="{ active: mode === 'company' }" @click="mode = 'company'">🏢 Company (many locations)</button>
       </div>
 
-      <OrgConsole v-if="mode === 'company'" :me="me" />
-      <BusinessSetup v-else-if="!me.business_location" :can-add-links="isPaid()" :current="me" @set="handleSetupDone" />
+      <AdminBilling v-if="me.is_admin" />
 
-      <template v-else>
+      <template v-if="isManager && mode === 'single'">
+        <LocationSwitcher v-model="activeLocation" :has-own="Boolean(me.business_location)" @loaded="orgInfo = $event" />
+        <LocationDetail v-if="showingLocation" :key="activeLocation" :location-id="activeLocation" :info="orgInfo" embedded />
+      </template>
+
+      <OrgConsole v-if="mode === 'company'" :me="me" />
+      <BusinessSetup v-else-if="!isManager && !me.business_location" :can-add-links="isPaid()" :current="me" @set="handleSetupDone" />
+
+      <template v-else-if="!showingLocation && (!isManager || me.business_location)">
       <IndustryPrompt v-if="!me.industry_set" :current="me" @saved="handleLinksSaved" />
       <div class="nlp-intro">
         <span>
