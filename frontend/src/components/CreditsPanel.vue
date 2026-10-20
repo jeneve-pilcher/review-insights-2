@@ -147,37 +147,6 @@ defineExpose({ reload: load })
           <div class="oc-bar-fill" :style="{ width: pct + '%' }"></div>
         </div>
 
-        <div class="oc-card" style="margin: 12px 0">
-          <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px">
-            <strong>Monthly spending limit</strong>
-            <span class="oc-note" style="margin: 0">{{ limitText }}</span>
-          </div>
-          <div v-if="info.monthly_limit_usd" class="oc-bar" :class="{ over: info.limit_reached }" style="margin-top: 8px">
-            <div :style="{ width: limitPercent + '%' }"></div>
-          </div>
-          <p v-if="info.limit_reached" class="oc-note" style="color: #c0392b">
-            The monthly limit has been reached, so {{ isOrg ? 'checks and analyses are' : 'analyses are' }} paused until next
-            month or until the limit is raised.
-          </p>
-          <p class="oc-note">
-            An optional ceiling on how much {{ isOrg ? 'the company' : 'you' }} can spend on data each month (what the
-            runs actually cost). Once it's reached, usage stops until next month. The run that crosses the limit still
-            finishes, so spending can go slightly over it. Leave it blank for no limit.
-          </p>
-          <div v-if="info.can_set_limit" class="analysis-form" style="margin-top: 8px">
-            <label class="field">
-              <span>Monthly limit ($, blank = no limit)</span>
-              <input v-model="limitInput" type="number" min="1" step="5" placeholder="No limit" />
-            </label>
-            <button class="oc-btn" :disabled="savingLimit" @click="saveLimit">Save limit</button>
-            <span v-if="limitMessage" class="oc-note">{{ limitMessage }}</span>
-          </div>
-          <p v-else class="oc-note">
-            <template v-if="isOrg">Only the company owner can change the limit.</template>
-            <template v-else>Spending limits are for Pro and Enterprise accounts.</template>
-          </p>
-        </div>
-
         <div v-if="info.can_buy">
           <div class="oc-note">Buy credit. Each pack shows what you pay and the credit you get:</div>
           <div class="oc-actions">

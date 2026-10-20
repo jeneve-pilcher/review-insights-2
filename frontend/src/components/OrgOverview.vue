@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { fetchIndustries, orgApi } from '../api'
-import CreditsPanel from './CreditsPanel.vue'
 import IndustrySelect from './IndustrySelect.vue'
 import OrgIndustryOverview from './OrgIndustryOverview.vue'
 import { ratingClass, signed } from '../utils/orgFormat'
@@ -59,7 +58,6 @@ onMounted(load)
 
 <template>
   <div>
-    <CreditsPanel scope="org" />
     <p v-if="loading" class="status">Loading the overview…</p>
     <p v-else-if="error" class="status error">{{ error }}</p>
 

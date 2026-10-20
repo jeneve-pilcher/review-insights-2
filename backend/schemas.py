@@ -39,9 +39,16 @@ class BusinessInput(BaseModel):
     search_query: str
 
 
+class CompetitorsRequest(BaseModel):
+    months: int = Field(6, ge=1, le=60)
+    competitors: List[BusinessInput] = Field(default_factory=list, max_length=5)
+
+
 class UnifiedAnalysisRequest(BaseModel):
     # How far back to pull reviews. Smaller = faster and cheaper.
     months: int = Field(6, ge=1, le=60)
+    # False when the page re-reads the same reviews for another view (combined / Google / Yelp): not a new press.
+    count_toward_limit: bool = True
     avg_order_value: float = Field(35.0, ge=0)
     reviews_to_customers_multiplier: float = Field(20.0, ge=1)
     # Optional (Pro/Enterprise). Each competitor is one extra review pull; the

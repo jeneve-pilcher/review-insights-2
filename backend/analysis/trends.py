@@ -38,7 +38,9 @@ _GENERIC_UNIGRAMS = {
 MIN_REVIEWS_PER_WINDOW = 5
 MIN_SPAN_DAYS = 14
 MIN_TERM_DOCS = 3          # a topic must appear in at least 3 reviews
-G2_THRESHOLD = 6.63        # chi-square, 1 degree of freedom, p < 0.01
+G2_THRESHOLD = 6.63        # chi-square, 1 degree of freedom, p < 0.01 (rising topics)
+FADING_G2_THRESHOLD = 3.84 # p < 0.05: fading topics are flagged more readily
+FADING_MIN_DOCS = 2        # a fading topic needs to have appeared in at least 2 earlier reviews
 TOP_N = 8
 
 
@@ -196,6 +198,7 @@ def build_trends(reviews: List[dict]) -> dict:
     split = last - timedelta(days=max(14, span_days / 3))
     baseline = [r for dt, r in dated if dt < split]
     recent = [r for dt, r in dated if dt >= split]
+    recent_dates = {id(r): dt for dt, r in dated if dt >= split}
 
     if len(baseline) < MIN_REVIEWS_PER_WINDOW or len(recent) < MIN_REVIEWS_PER_WINDOW:
         return {
@@ -218,7 +221,7 @@ def build_trends(reviews: List[dict]) -> dict:
         if rate_r == rate_b:
             continue
         g2 = _g2(a, n_r - a, c, n_b - c)
-        if g2 < G2_THRESHOLD:
+        if g2 < (FADING_G2_THRESHOLD if rate_b > rate_r else G2_THRESHOLD):
             continue
 
         if rate_r > rate_b and a >= MIN_TERM_DOCS:
@@ -232,7 +235,7 @@ def build_trends(reviews: List[dict]) -> dict:
                 "tone": _tone(avg_rating),
                 "example": _example(ex_r[term]),
             })
-        elif rate_b > rate_r and c >= MIN_TERM_DOCS:
+        elif rate_b > rate_r and c >= FADING_MIN_DOCS:
             avg_rating = rating_b[term] / c
             fading_c.append({
                 "term": term, "score": round(g2, 1),
@@ -245,6 +248,21 @@ def build_trends(reviews: List[dict]) -> dict:
             })
 
     rising, fading = _pick(rising_c), _pick(fading_c)
+
+    # Every recent review behind each rising topic (names left out, emails/phones blanked), newest first.
+    for item in rising:
+        rows = []
+        for r in recent:
+            if item["term"] in terms_for_text(r["text"]):
+                text = redact_pii((r.get("text") or "").strip())
+                rows.append((recent_dates[id(r)], {
+                    "rating": r.get("rating"),
+                    "date": recent_dates[id(r)].strftime("%Y-%m-%d"),
+                    "source": r.get("source", "google"),
+                    "text": text[:500],
+                }))
+        rows.sort(key=lambda x: x[0], reverse=True)
+        item["reviews"] = [row for _, row in rows]
 
     rating_baseline = [r["rating"] for dt, r in dated_all if dt < split]
     rating_recent = [r["rating"] for dt, r in dated_all if dt >= split]
@@ -339,7 +357,7 @@ def trim_for_preview(trends: dict, keep: int = 3) -> dict:
         return trends
 
     def strip(items):
-        return [{k: v for k, v in item.items() if k != "example"} for item in items[:keep]]
+        return [{k: v for k, v in item.items() if k not in ("example", "reviews")} for item in items[:keep]]
 
     preview = dict(trends)
     preview["hidden"] = {

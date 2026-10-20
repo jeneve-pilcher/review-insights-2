@@ -172,7 +172,7 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
         <p class="chart-desc">
           Every panel for this location: signals, reviews with draft replies, language analysis,
           the wait-time heatmap, and optionally internet mentions. It pulls this location's reviews
-          now, which is paid from your company credit and counts toward your monthly spending limit, if you set one (repeat pulls inside 30 minutes are free).
+          now (repeat pulls inside 30 minutes are free).
         </p>
         <div class="analysis-form">
           <label class="field">

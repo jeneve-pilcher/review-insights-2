@@ -6,16 +6,17 @@ from typing import List, Optional
 from dateutil import parser as date_parser
 
 from analysis.chart2_wait_time_heatmap import DAY_ORDER, HOUR_BUCKETS
+from analysis.pii import redact_pii
 from analysis.platforms import mix_shift
 from analysis.review_utils import has_text
 from analysis.sentiment import WAIT_TIME_PHRASES, contains_any_phrase
 from analysis.trends import compare_means, terms_for_text
 
-MIN_REVIEWS = 30          # dated reviews needed before any signal is attempted
-TOPIC_MIN_MENTIONS = 4    # a topic must appear in at least 4 written reviews
-SLOT_MIN_REVIEWS = 5      # a day/hour slot needs at least 5 reviews
-MIN_STAR_EFFECT = 0.7     # topic / slot must differ from the rest by this many stars
-P_STRICT = 0.01
+MIN_REVIEWS = 12          # dated reviews needed before any signal is attempted
+TOPIC_MIN_MENTIONS = 3    # a topic must appear in at least 3 written reviews
+SLOT_MIN_REVIEWS = 3      # a day/hour slot needs at least 3 reviews
+MIN_STAR_EFFECT = 0.5     # topic / slot must differ from the rest by this many stars
+P_STRICT = 0.05
 MAX_SIGNALS = 8
 
 _TYPE_ORDER = {"warning": 0, "opportunity": 1, "positive": 2}
@@ -63,9 +64,33 @@ def _hour_label(start: int, end: int) -> str:
     return f"{a}–{b}{sa}" if sa == sb else f"{a}{sa}–{b}{sb}"
 
 
-def _signal(kind, title, detail, action, basis, weight=0.0) -> dict:
-    return {"type": kind, "title": title, "detail": detail, "action": action,
-            "basis": basis, "_weight": weight}
+def _signal(kind, title, detail, action, basis, weight=0.0, reviews=None) -> dict:
+    sig = {"type": kind, "title": title, "detail": detail, "action": action,
+           "basis": basis, "_weight": weight}
+    if reviews:
+        sig["reviews"] = reviews
+    return sig
+
+
+def _written_items(rs, worst_first=None, cap: int = 60) -> list:
+    """The written reviews behind a signal (names left out, emails/phones blanked), for the page to list.
+    worst_first: True = lowest stars first, False = highest first, None = newest first."""
+    rows = []
+    for r in rs:
+        if not has_text(r):
+            continue
+        dt = _parse_dt(r.get("datetime_utc"))
+        rows.append((dt, {
+            "rating": r.get("rating"),
+            "date": dt.strftime("%Y-%m-%d") if dt else "",
+            "source": r.get("source", "google"),
+            "text": redact_pii((r.get("text") or "").strip())[:500],
+        }))
+    if worst_first is None:
+        rows.sort(key=lambda x: x[0] or datetime.min, reverse=True)
+    else:
+        rows.sort(key=lambda x: (x[1]["rating"] or 0) * (1 if worst_first else -1))
+    return [item for _, item in rows[:cap]]
 
 
 # ---- 1. Momentum: star average + share of 1-2 star ratings (ALL reviews) ----
@@ -74,23 +99,23 @@ def _momentum_signals(reviews: List[dict]) -> List[dict]:
         ((dt, r) for r in reviews if (dt := _parse_dt(r["datetime_utc"])) is not None),
         key=lambda x: x[0],
     )
-    if len(dated) < 20:
+    if len(dated) < 10:
         return []
     first, last = dated[0][0], dated[-1][0]
     span = (last - first).days
-    if span < 28:
+    if span < 14:
         return []
 
     split = last - timedelta(days=max(14, span / 3))
     base = [r for dt, r in dated if dt < split]
     rec = [r for dt, r in dated if dt >= split]
-    if len(base) < 10 or len(rec) < 10:
+    if len(base) < 5 or len(rec) < 5:
         return []
 
     out = []
 
     cmp = compare_means([r["rating"] for r in base], [r["rating"] for r in rec])
-    if cmp["significant"] and abs(cmp["delta"]) >= 0.1:
+    if cmp["significant"] and abs(cmp["delta"]) >= 0.05:
         b, c, n = cmp["baseline_mean"], cmp["recent_mean"], len(base) + len(rec)
         if cmp["delta"] < 0:
             out.append(_signal(
@@ -99,8 +124,8 @@ def _momentum_signals(reviews: List[dict]) -> List[dict]:
                 f"Across all {n} reviews (written and star-only), the recent period averages {c:.2f}★ vs "
                 f"{b:.2f}★ earlier. Google says review score and count factor into local ranking, so a "
                 f"slide can cost visibility.",
-                "Open Emerging Topic Trends to see which topics are rising, and check Negative Review Alerts.",
-                "all", abs(cmp["delta"]) * n))
+                "Open Emerging Topic Trends to see which topics are rising, and read the recent written reviews below.",
+                "all", abs(cmp["delta"]) * n, _written_items(rec, worst_first=True)))
         else:
             out.append(_signal(
                 "positive",
@@ -108,14 +133,14 @@ def _momentum_signals(reviews: List[dict]) -> List[dict]:
                 f"Across all {n} reviews (written and star-only), the recent period averages {c:.2f}★ vs "
                 f"{b:.2f}★ earlier.",
                 "Check Emerging Topic Trends to see what's fading and rising, and keep doing what's working.",
-                "all", abs(cmp["delta"]) * n))
+                "all", abs(cmp["delta"]) * n, _written_items(rec, worst_first=False)))
 
     low_b = sum(1 for r in base if r["rating"] <= 2)
     low_r = sum(1 for r in rec if r["rating"] <= 2)
     p_b, p_r = low_b / len(base), low_r / len(rec)
     pooled = (low_b + low_r) / (len(base) + len(rec))
     se = math.sqrt(pooled * (1 - pooled) * (1 / len(base) + 1 / len(rec)))
-    if se > 0 and abs(p_r - p_b) >= 0.04:
+    if se > 0 and abs(p_r - p_b) >= 0.03:
         p = math.erfc(abs((p_r - p_b) / se) / math.sqrt(2))
         if p < 0.05:
             if p_r > p_b:
@@ -124,9 +149,9 @@ def _momentum_signals(reviews: List[dict]) -> List[dict]:
                     f"1–2★ ratings are growing: {round(100 * p_b)}% → {round(100 * p_r)}% of reviews",
                     f"Counting every rating, including ones with no comment: {low_r} of {len(rec)} recent "
                     f"reviews were 1–2★ vs {low_b} of {len(base)} earlier.",
-                    "Read the recent ones in Negative Review Alerts and reply. Star-only ratings have no "
+                    "Read the recent written ones below and reply. Star-only ratings have no "
                     "text, so compare their dates with changes in staffing, menu or policy.",
-                    "all", abs(p_r - p_b) * len(rec) * 10))
+                    "all", abs(p_r - p_b) * len(rec) * 10, _written_items([r for r in rec if r["rating"] <= 2])))
             else:
                 out.append(_signal(
                     "positive",
@@ -208,7 +233,7 @@ def _pick_terms(cands: List[dict], n: int = 2) -> List[dict]:
 def _topic_signals(reviews: List[dict]) -> List[dict]:
     written = [r for r in reviews if has_text(r)]
     w_count = len(written)
-    if w_count < 20:
+    if w_count < 10:
         return []
 
     acc = defaultdict(lambda: [0, 0.0, 0.0, []])
@@ -261,8 +286,8 @@ def _topic_signals(reviews: List[dict]) -> List[dict]:
             f"\"{c['term']}\" goes with lower ratings ({c['mean']:.1f}★ vs {c['others']:.1f}★ for other written reviews)",
             f"{c['n']} written reviews mention it and average {c['mean']:.1f}★, vs {c['others']:.1f}★ for "
             f"your other written reviews.{gain_text}",
-            "Read examples in Emerging Topic Trends or Negative Review Alerts and fix the process behind it.",
-            "both", c["score"] * 2))
+            "Read the written reviews below and fix the process behind it.",
+            "both", c["score"] * 2, _written_items([written[i] for i in sorted(c["docs"])], worst_first=True)))
     for c in _pick_terms(positive):
         out.append(_signal(
             "opportunity",
@@ -270,7 +295,7 @@ def _topic_signals(reviews: List[dict]) -> List[dict]:
             f"{c['n']} written reviews mention it and average {c['mean']:.1f}★, vs {c['others']:.1f}★ for "
             f"your other written reviews: a strength customers notice.",
             "Feature it in your Google profile description, photos and review replies.",
-            "written", c["score"]))
+            "written", c["score"], _written_items([written[i] for i in sorted(c["docs"])], worst_first=False)))
     return out
 
 
@@ -329,7 +354,7 @@ def _timeslot_signal(reviews: List[dict]) -> List[dict]:
         f"{best['day']} {_hour_label(best['start'], best['end'])} is your weakest slot ({best['mean']:.1f}★)",
         " ".join(parts),
         "Check staffing and prep for that slot. The Wait-Time Heatmap shows the same pattern.",
-        "both" if waits else "all", best["score"] * 2)]
+        "both" if waits else "all", best["score"] * 2, _written_items(best["reviews"], worst_first=True))]
 
 
 def build_revenue_signals(reviews: List[dict]) -> dict:
@@ -375,6 +400,6 @@ def trim_signals_for_preview(result: dict, keep: int = 2) -> dict:
         return result
     preview = dict(result)
     preview["hidden"] = max(0, len(result["signals"]) - keep)
-    preview["signals"] = result["signals"][:keep]
+    preview["signals"] = [{k: v for k, v in s.items() if k != "reviews"} for s in result["signals"][:keep]]
     preview["preview"] = True
     return preview

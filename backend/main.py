@@ -10,6 +10,7 @@ from analysis import pipeline
 import features
 from analysis.mentions import default_terms, mention_target
 from analysis.competitor_input import clean_competitors
+from analysis.chart3_competitor_share import build_competitor_share
 from analysis.outscraper_client import place_info
 from analysis import industries
 from branding import allow_lookup, domain_of, public_branding
@@ -27,6 +28,7 @@ from corporate.admin_routes import router as admin_billing_router
 from corporate import billing_report
 from corporate import pricing
 import contact_sales
+import rate_limit
 from email_alerts import send_email
 from replies import router as replies_router
 from schemas import (
@@ -38,6 +40,7 @@ from schemas import (
     SetPlatformUrlRequest,
     SetYelpUrlRequest,
     UnifiedAnalysisRequest,
+    CompetitorsRequest,
 )
 from supabase_client import delete_user, get_profile, get_supabase_admin, set_business_location
 
@@ -347,6 +350,16 @@ def analyze_all(
     location = _require_business_location(current_user)
     paid = current_user.tier in ("pro", "enterprise")
 
+    # At most ANALYZE_PER_HOUR (default 5) presses of Run Analysis per person per hour.
+    if req.count_toward_limit:
+        ok, wait = rate_limit.take("analyze:" + str(current_user.id), rate_limit.analyze_limit())
+        if not ok:
+            mins = max(1, -(-wait // 60))
+            raise HTTPException(
+                status_code=429,
+                detail=f"You can run the analysis {rate_limit.analyze_limit()} times an hour. Try again in about {mins} minute{'s' if mins != 1 else ''}.",
+            )
+
     profile = get_profile(current_user.id) or {}
 
     # Usage billing: the monthly plan allowance is spent first, then prepaid credit. Spending stops for the
@@ -400,6 +413,31 @@ def analyze_all(
     )
     result["billing"] = wallet.settle(get_store(), credit_scope, allowance, cost, "Analysis")
     return result
+
+
+# Just the Competitor Semantic Share Matrix: your own Google reviews (free inside the 30-minute cache window)
+# plus each competitor, without rebuilding any other panel.
+@app.post("/api/analyze/competitors")
+def analyze_competitors(
+    req: CompetitorsRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    if current_user.tier not in ("pro", "enterprise"):
+        raise HTTPException(status_code=403, detail="Competitor comparison is a Pro feature.")
+    location = _require_business_location(current_user)
+    profile = get_profile(current_user.id) or {}
+    credit_scope = wallet.scope_for_user(current_user.id)
+    allowance = wallet.allowance_for_tier(current_user.tier)
+    wallet.precheck(get_store(), credit_scope, allowance, who="user", tier=current_user.tier,
+                    limit_usd=profile.get("monthly_limit_usd"))
+
+    by_source, _cached, _notes, fresh, _unrated = pipeline.pull_reviews_ext(
+        location, None, req.months, want_yelp=False, others={}
+    )
+    businesses = [{"name": "Your Business", "search_query": location}] + clean_competitors([c.model_dump() for c in req.competitors])
+    competitors = build_competitor_share(businesses, req.months, own_reviews=by_source["google"])
+    cost = credit_rates.cost_breakdown(fresh, competitor_reviews=competitors.get("fresh_reviews", 0))
+    return {"competitors": competitors, "billing": wallet.settle(get_store(), credit_scope, allowance, cost, "Competitor comparison")}
 
 
 # ---------------------------------------------------------

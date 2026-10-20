@@ -354,3 +354,116 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   The speech-bubble count and the hover text follow the chosen topic; a line names the busiest slot.
 - Same curated word lists as the industry trends. Time is when the review was posted, Google only.
 - Backend part tested with stand-ins for the other modules; the Vue part was only tag-checked.
+
+=== Heatmap lists the reviews for the chosen topic (v30) ===
+- Each review in a heatmap cell now carries topics (backend chart2_wait_time_heatmap.py).
+- WaitTimeHeatmap.vue: under the grid, "Reviews that mention <topic>" lists them newest first
+  (30 shown, with a count). Click a box to see only that day and time; click again or "Show all times".
+- Only reviews posted inside the grid hours (9am-11pm, Google) are listed. Not seen in a browser.
+
+=== Monthly spending limit section removed (v30) ===
+- CreditsPanel.vue: the "Monthly spending limit" box is gone (dashboard and company view).
+  Credit balance, plan allowance and Buy credit remain. Backend limit code is untouched; a limit
+  already saved would still apply but can no longer be edited in the app.
+
+=== Usage & credit section removed (v30) ===
+- The "Usage & credit" panel is gone from the dashboard and the company overview, and the run-cost
+  line under the analysis form no longer appears (it needed that panel's data).
+- Not changed: backend credit charging, limits and Stripe credit packs. If credit runs out, a run
+  can still be refused and the app has no screen to buy more. CreditsPanel.vue is kept, unused.
+
+=== Order value / customers-per-review inputs and dollar bars removed (v30) ===
+- UnifiedAnalysisForm.vue: "Avg. order value" and "Est. customers per review" fields removed; the
+  request no longer sends them (backend falls back to its defaults, unused by the page).
+- WaitTimeHeatmap.vue: "Estimated Revenue Drag" dollar bars removed; the heatmap is now titled
+  "Wait-Time and Topic Heatmap". LandingView.vue still says "Wait-Time Revenue Heatmap" (not touched).
+- LocationDetail.vue: text about company credit / spending limit removed.
+
+=== Revenue signals need fewer reviews (v30) ===
+- analysis/insights.py: dated reviews needed 30 -> 12; topic mentions 4 -> 3; day/hour slot reviews
+  5 -> 3; star-average momentum needs 10 reviews (was 20) over 14 days (was 28), 5 in each half (was 10).
+- The significance test and the 0.7-star minimum difference are unchanged, so small samples still have
+  to show a clear gap, but a signal from a few reviews is less reliable. Syntax-checked only.
+
+=== Emerging topic trends: counts, review lists, more sensitive fading (v30) ===
+- Each rising topic shows "Earlier: X of N reviews, Recent: Y of M reviews" and a "Show all N recent
+  reviews that mention it" list (newest first; names left out, emails/phones blanked). The periods
+  box shows the date ranges. Free preview does not include the review lists.
+- Fading topics: significance p<0.05 (was p<0.01) and 2 earlier mentions (was 3). Rising unchanged.
+  More sensitive means more fading topics that may be chance.
+- analysis/trends.py. Not run against real data (nltk isn't installable here); Vue only tag-checked.
+
+=== Competitors at the bottom; your business always included (v30) ===
+- UnifiedAnalysisForm.vue: the add-competitors block now sits just above the Run Analysis button,
+  with a greyed first row for your own business ("always included").
+- analysis/pipeline.py: the competitor comparison is always built (paid plans) with your business
+  first, even with no competitors added. It reuses your already-pulled Google reviews, so no extra pull.
+- CompetitorShareChart.vue: wording points to the bottom of Run Analysis.
+- The "Your opening" read-out only appears once at least one competitor is added. Not seen in a browser.
+
+=== Add competitor lives inside the Competitor Semantic Share Matrix (v30) ===
+- The add-competitors rows are removed from the Run Analysis form and now sit at the top of the
+  Competitor Semantic Share Matrix panel, with your business as a greyed, always-included first row.
+- DashboardView.vue keeps the list (competitorList) and passes it to both the form (read only, used
+  when Run Analysis runs) and the panel. A "Compare" button in the panel re-runs the analysis.
+- Note: "Compare" runs the whole analysis again (same as Run Analysis); repeat pulls inside 30 minutes
+  are free. Not seen in a browser.
+
+=== BY WEEK labels (v30) ===
+- IndustryPanel.vue: the industry trends title now has the BY WEEK badge (its lines are weekly).
+- TrendsPanel.vue: Emerging Topic Trends is NOT weekly (recent third vs earlier), so it gets a
+  RECENT VS EARLIER badge and the description says it isn't week by week.
+- The badge styling comes from ByWeekBadge.vue, which loads wherever IndustryPanel is shown.
+
+=== Run Analysis button beside the months number (v30) ===
+- UnifiedAnalysisForm.vue: the Run Analysis button moved from the bottom of the form to sit right
+  next to "Analyze the last (months)" (wraps under it on a narrow screen). Not seen in a browser.
+
+=== Compare re-runs only the competitor matrix (v30) ===
+- New endpoint POST /api/analyze/competitors (main.py, schemas.CompetitorsRequest, api.analyzeCompetitors).
+  It reuses your Google reviews (free inside the 30-minute cache window), pulls each competitor
+  (one pull each), and returns only the matrix. Pro/Enterprise only. Charges like the main analysis.
+- DashboardView.vue runCompare() updates just the matrix; the button shows "Comparing…" and any error.
+- Run Analysis still runs everything and still includes the competitors you have listed.
+- Python files syntax-checked only; the endpoint was not run (no network, no Outscraper).
+
+=== Revenue signals more sensitive (v30) ===
+- analysis/insights.py: star difference needed for a topic or time slot 0.7 -> 0.5; confidence for
+  topics and slots 99% -> 95% (P_STRICT 0.01 -> 0.05); written reviews needed for topic signals
+  20 -> 10; star-average change needed 0.1 -> 0.05; 1-2 star share change needed 4 -> 3 points.
+- Trade-off: more signals, and more of them can be chance. Syntax-checked only.
+
+=== Run Analysis limited to 5 presses an hour (v30) ===
+- New backend/rate_limit.py; main.py /api/analyze/all counts each press per person. The 6th within
+  an hour gets a message saying how many minutes to wait. Change the number with the environment
+  variable ANALYZE_PER_HOUR (default 5).
+- Switching the view (combined / Google / Yelp) re-reads the same reviews and is not counted
+  (the page sends count_toward_limit=false). Compare is not counted either.
+- The count is kept in memory: it resets when the backend restarts, and each backend process counts
+  separately (the local Docker setup runs one). Tested the counter alone; the endpoint was not run.
+
+=== Revenue signals show their written reviews (v30) ===
+- analysis/insights.py: each signal carries up to 60 of the written reviews behind it (topic signals:
+  every written review mentioning the topic; weakest slot: its written reviews; 1-2 star growth: the
+  recent 1-2 star written reviews; star average: the recent written reviews, worst or best first).
+  Names left out, emails/phones blanked. Review-pace signals have none (no review mentions them).
+- RevenueSignals.vue: "Show the N written reviews behind this" under each card that has them.
+  The free preview does not include the lists.
+- Tested with stand-ins for the text libraries; Vue only tag-checked.
+
+=== Click a dot on the industry trends chart (v30) ===
+- analysis/industry_trends.py: each theme now has "points" (per week: written reviews that week, how
+  many mention the theme, their average stars and tone, and up to 25 review numbers) and the result has
+  one shared "pool" of those reviews (names left out, emails/phones blanked, 400 characters).
+  Tone for clinical (healthcare) packs is left out, since clinical words describe the condition.
+- IndustryPanel.vue / utils/industry.js: clicking a dot opens a box with the week, the counts, average
+  stars, tone in words (positive / mixed / negative, scale -1 to +1) and the reviews, with a Close button.
+- Backend tested with stand-ins for the text libraries; the click behaviour has not been tried in a browser.
+
+=== Heatmap shows every star rating's real share per slot (v30) ===
+- chart2_wait_time_heatmap.py: each cell now carries star_counts and star_pct for 1-5 stars (the
+  percentages add up to 100 for that slot's reviews).
+- WaitTimeHeatmap.vue: each box is filled 5 star to 1 star by those real shares (green to red) instead of
+  only the top three star tiers, the legend lists 1-5 stars, and the hover text gives the review count and
+  each star's percentage and count. The old top-tier data is still sent (the revenue-drag maths used it).
+- Not seen in a browser.

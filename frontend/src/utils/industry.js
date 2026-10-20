@@ -36,8 +36,8 @@ export function chartSeries(trends, selectedIds) {
     datasets: picked.map((t) => {
       const color = PALETTE[trends.themes.indexOf(t) % PALETTE.length]
       return {
-        label: t.label, data: t.series.map((v) => (v == null ? null : Math.round(v * 100))),
-        borderColor: color, backgroundColor: color, spanGaps: true, tension: 0.25, pointRadius: 2, borderWidth: 2,
+        themeId: t.id, label: t.label, data: t.series.map((v) => (v == null ? null : Math.round(v * 100))),
+        borderColor: color, backgroundColor: color, spanGaps: true, tension: 0.25, pointRadius: 3, pointHoverRadius: 6, pointHitRadius: 12, borderWidth: 2,
       }
     }),
   }
@@ -81,4 +81,23 @@ export function subratingsMessage(sub) {
   if (sub.status === 'no_data') return 'Connect your OpenTable page to see food, service, ambience and value scores over time.'
   if (sub.status === 'too_few') return `Sub-ratings need at least ${sub.minimum} OpenTable reviews; there are ${sub.n} so far.`
   return ''
+}
+
+// Plain words for a tone number from -1 (very negative) to +1 (very positive).
+export function toneWord(v) {
+  if (v == null) return ''
+  if (v >= 0.25) return 'positive'
+  if (v <= -0.25) return 'negative'
+  return 'mixed'
+}
+
+// What a clicked point on the weekly chart stands for: the week, the theme, its numbers and the reviews behind it.
+export function pointDetail(trends, themeId, weekIndex) {
+  const theme = (trends?.themes ?? []).find((t) => t.id === themeId)
+  const point = theme?.points?.[weekIndex]
+  if (!theme || !point) return null
+  return {
+    theme: theme.label, week: weekLabel(trends.weeks[weekIndex]), hits: point.hits, total: point.n,
+    rating: point.rating, tone: point.tone, reviews: (point.ids ?? []).map((i) => trends.pool?.[i]).filter(Boolean),
+  }
 }

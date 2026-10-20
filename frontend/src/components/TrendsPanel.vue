@@ -37,12 +37,12 @@ function signed(n, digits = 2) {
 <template>
   <section class="chart-section">
     <div class="title-row">
-      <h3>🧠 Emerging Topic Trends</h3>
+      <h3>🧠 Emerging Topic Trends<span class="by-week-badge" title="Not week by week: the most recent third of your time window is compared with everything before it">RECENT VS EARLIER</span></h3>
       <span v-if="isPreview" class="trend-preview-tag">Free preview</span>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">
-      Language analysis of review text: it compares the most recent third of your time window
+      Language analysis of review text. This is not week by week: it compares the most recent third of your time window
       against the earlier period and surfaces phrases that are rising or fading in a
       statistically meaningful way (not just a one-off mention). Treat these as signals worth a
       look, not proof.
@@ -104,7 +104,9 @@ function signed(n, digits = 2) {
             Recent: {{ result.windows.recent.reviews }} written reviews
           </span>
           <span class="sub">
-            Recent period starts {{ result.windows.recent.start }}. Stars use all
+            Earlier: {{ result.windows.baseline.start }} to {{ result.windows.baseline.end }}.
+            Recent: {{ result.windows.recent.start }} to {{ result.windows.recent.end }}.
+            Topics use written reviews only. Stars use all
             {{ (result.windows.baseline.all_reviews ?? 0) + (result.windows.recent.all_reviews ?? 0) }} reviews
           </span>
         </div>
@@ -120,9 +122,22 @@ function signed(n, digits = 2) {
               <span class="trend-item-nums">{{ t.baseline_pct }}% → {{ t.recent_pct }}% of reviews</span>
             </div>
             <div class="trend-item-sub">
+              Earlier: {{ t.baseline_count }} of {{ result.windows.baseline.reviews }} reviews ·
+              Recent: {{ t.recent_count }} of {{ result.windows.recent.reviews }} reviews
+            </div>
+            <div class="trend-item-sub">
               avg {{ fmt(t.avg_rating, 1) }}★ when mentioned · {{ t.tone }}
             </div>
             <div v-if="t.example" class="trend-item-example">“{{ t.example }}”</div>
+            <details v-if="t.reviews && t.reviews.length" class="trend-reviews">
+              <summary>Show all {{ t.reviews.length }} recent reviews that mention “{{ t.term }}”</summary>
+              <ul>
+                <li v-for="(r, i) in t.reviews" :key="i">
+                  <div class="trend-review-meta">{{ r.rating }}★ · {{ r.date }}</div>
+                  <div>{{ r.text }}</div>
+                </li>
+              </ul>
+            </details>
           </div>
         </div>
 
@@ -248,6 +263,11 @@ function signed(n, digits = 2) {
   margin-top: 2px;
 }
 
+.trend-reviews { margin-top: 8px; }
+.trend-reviews summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+.trend-reviews ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.trend-reviews li { border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 8px; padding: 6px 8px; font-size: 0.85rem; line-height: 1.4; }
+.trend-review-meta { font-size: 0.75rem; opacity: 0.75; margin-bottom: 2px; }
 .trend-item-example {
   margin-top: 6px;
   font-size: 12px;

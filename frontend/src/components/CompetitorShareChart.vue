@@ -24,7 +24,22 @@ const props = defineProps({
   // Comes from the same Run Analysis click as every other panel.
   result: { type: Object, default: null },
   months: { type: Number, default: 6 },
+  competitors: { type: Array, default: () => [] },
+  comparing: { type: Boolean, default: false },
+  error: { type: String, default: '' },
 })
+const emit = defineEmits(['update:competitors', 'run'])
+
+function addCompetitor() {
+  if (props.competitors.length >= 5) return
+  emit('update:competitors', [...props.competitors, { name: `Competitor ${props.competitors.length + 1}`, search_query: '' }])
+}
+function removeCompetitor(i) {
+  emit('update:competitors', props.competitors.filter((_, idx) => idx !== i))
+}
+function editCompetitor(i, key, value) {
+  emit('update:competitors', props.competitors.map((c, idx) => (idx === i ? { ...c, [key]: value } : c)))
+}
 
 const readItems = computed(() => competitorReadItems(props.result))
 
@@ -85,17 +100,33 @@ const chartOptions = {
     </div>
     <p class="chart-desc">
       Compares <strong>{{ shortBusinessName(businessLocation) }}</strong> against the
-      competitors you add in <em>Run Analysis</em> above, using reviews from the last {{ months }}
+      competitors you add below, using reviews from the last {{ months }}
       {{ months === 1 ? 'month' : 'months' }}. It breaks down what drives each business's top 3
       dominant star tiers by theme - exposing exactly where a competitor is vulnerable. Top
       keywords per tier are shown below the chart as a lightweight topic signal (word frequency,
       not full topic modeling).
     </p>
 
-    <p v-if="!result" class="status">
-      Optional: add competitors in Run Analysis above, then click Run Analysis. Each competitor
-      is one extra review pull.
-    </p>
+    <div class="competitor-inputs">
+      <p class="chart-desc" style="margin-bottom: 8px">
+        <strong>Add competitors.</strong> Your own business is always in the comparison. Each competitor you add is one
+        extra review pull. Paste a Google Maps link if a name is ambiguous.
+      </p>
+      <div class="competitor-row">
+        <input type="text" class="competitor-name" :value="shortBusinessName(businessLocation)" disabled />
+        <input type="text" class="competitor-query" value="Your business (always included)" disabled />
+      </div>
+      <div v-for="(c, i) in competitors" :key="i" class="competitor-row">
+        <input :value="c.name" type="text" placeholder="Competitor name (optional)" class="competitor-name" @input="editCompetitor(i, 'name', $event.target.value)" />
+        <input :value="c.search_query" type="text" placeholder="Location, or a Google Maps URL" class="competitor-query" @input="editCompetitor(i, 'search_query', $event.target.value)" />
+        <button type="button" class="remove-btn" @click="removeCompetitor(i)">✕</button>
+      </div>
+      <button v-if="competitors.length < 5" type="button" class="add-btn" @click="addCompetitor">+ Add competitor</button>
+      <button type="button" class="run-btn" style="width: auto; padding: 8px 20px; margin-left: 8px" :disabled="comparing" @click="emit('run')">{{ comparing ? 'Comparing…' : 'Compare' }}</button>
+      <p v-if="error" class="status error" style="margin-top: 6px">{{ error }}</p>
+    </div>
+
+    <p v-if="!result" class="status">Run the analysis (or press Compare) to see this chart.</p>
 
     <template v-else>
       <NlpCallout

@@ -38,11 +38,13 @@ export async function analyzeAll({
   mentions = false,
   mentionTerms = null,
   mentionPages = 2,
+  countTowardLimit = true,
 }) {
   const { data } = await api.post('/api/analyze/all', {
     months,
     avg_order_value: avgOrderValue,
     reviews_to_customers_multiplier: reviewsToCustomersMultiplier,
+    count_toward_limit: countTowardLimit,
     competitors,
     sources,
     view,
@@ -50,6 +52,12 @@ export async function analyzeAll({
     mention_terms: mentionTerms,
     mention_pages: mentionPages,
   })
+  return data
+}
+
+// Only the Competitor Semantic Share Matrix, without rebuilding the rest of the dashboard.
+export async function analyzeCompetitors({ months, competitors = [] }) {
+  const { data } = await api.post('/api/analyze/competitors', { months, competitors })
   return data
 }
 

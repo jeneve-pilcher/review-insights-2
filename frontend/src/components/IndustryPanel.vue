@@ -1,4 +1,5 @@
 <script setup>
+import ByWeekBadge from './ByWeekBadge.vue'
 import { computed, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
 import {
@@ -12,7 +13,7 @@ import {
   Tooltip,
 } from 'chart.js'
 import { kpiChangeText, kpiTone, kpiValueText, singleKpis } from '../utils/industryOrg'
-import { chartSeries, compareText, defaultSelection, pct, ratingText, subSeries, subratingsMessage, toneClass, trendsMessage } from '../utils/industry'
+import { chartSeries, compareText, pointDetail, toneWord, defaultSelection, pct, ratingText, subSeries, subratingsMessage, toneClass, trendsMessage } from '../utils/industry'
 
 ChartJS.register(Title, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement)
 
@@ -42,8 +43,18 @@ const trendNote = computed(() => trendsMessage(trends.value))
 const subNote = computed(() => subratingsMessage(sub.value))
 const mentioned = computed(() => (trends.value?.themes ?? []).filter((t) => t.mentions > 0))
 
+const clicked = ref(null)
+watch(trends, () => { clicked.value = null })
+const detail = computed(() => (clicked.value ? pointDetail(trends.value, clicked.value.themeId, clicked.value.index) : null))
+
 const trendOptions = {
   responsive: true,
+  onClick: (_event, elements, chart) => {
+    if (!elements.length) return
+    const { datasetIndex, index } = elements[0]
+    clicked.value = { themeId: chart.data.datasets[datasetIndex].themeId, index }
+  },
+  onHover: (event, elements) => { event.native.target.style.cursor = elements.length ? 'pointer' : 'default' },
   maintainAspectRatio: false,
   scales: { y: { beginAtZero: true, ticks: { callback: (v) => `${v}%` }, title: { display: true, text: 'Share of written reviews' } } },
   plugins: { tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y}% of reviews that week` } } },
@@ -57,7 +68,7 @@ const subOptions = {
 
 <template>
   <section class="chart-section">
-    <h3>🏷️ {{ pack ? `${pack.label} trends` : 'Industry trends' }}</h3>
+    <h3>🏷️ {{ pack ? `${pack.label} trends` : 'Industry trends' }}<ByWeekBadge /></h3>
 
     <p v-if="locked" class="chart-desc">
       Industry trends (the themes and graphs for your kind of business) are a Pro feature.
@@ -103,6 +114,25 @@ const subOptions = {
             {{ t.label }}
           </button>
           <div style="height: 280px"><Line :data="trendData" :options="trendOptions" /></div>
+          <p class="oc-note" style="margin-top: 6px">Click a dot to see that week's tone and the written reviews behind it.</p>
+
+          <div v-if="detail" class="point-detail">
+            <h4>{{ detail.theme }} · week of {{ detail.week }}</h4>
+            <p class="chart-desc">
+              {{ detail.hits }} of {{ detail.total }} written reviews that week mention it<template v-if="detail.rating != null">, averaging {{ detail.rating }}★</template>.
+              <template v-if="detail.tone != null">Their language reads <strong>{{ toneWord(detail.tone) }}</strong> ({{ detail.tone }} on a scale of −1 to +1).</template>
+            </p>
+            <p v-if="!detail.reviews.length" class="status">No written reviews mention it that week.</p>
+            <ul v-else class="point-reviews">
+              <li v-for="(r, i) in detail.reviews" :key="i">
+                <div class="point-review-meta">
+                  {{ r.rating }}★ · {{ r.date }}<template v-if="r.tone != null"> · {{ toneWord(r.tone) }}</template>
+                </div>
+                <div>{{ r.text }}</div>
+              </li>
+            </ul>
+            <button class="oc-btn" type="button" @click="clicked = null">Close</button>
+          </div>
         </div>
 
         <div class="oc-scroll">
@@ -136,3 +166,10 @@ const subOptions = {
     </template>
   </section>
 </template>
+
+<style>
+.point-detail { margin-top: 12px; padding: 12px 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 10px; }
+.point-reviews { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.point-reviews li { border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; padding: 6px 8px; font-size: 0.88rem; line-height: 1.4; }
+.point-review-meta { font-size: 0.78rem; opacity: 0.75; margin-bottom: 2px; }
+</style>

@@ -8,7 +8,6 @@ import OrgConsole from '../components/OrgConsole.vue'
 import LocationDetail from '../components/LocationDetail.vue'
 import LocationSwitcher from '../components/LocationSwitcher.vue'
 import PlatformComparison from '../components/PlatformComparison.vue'
-import CreditsPanel from '../components/CreditsPanel.vue'
 import IndustryPanel from '../components/IndustryPanel.vue'
 import AiSummary from '../components/AiSummary.vue'
 import { FEATURES } from '../content/features'
@@ -24,7 +23,8 @@ import WaitTimeHeatmap from '../components/WaitTimeHeatmap.vue'
 import WeeklyThemesChart from '../components/WeeklyThemesChart.vue'
 import ToneVsStarsChart from '../components/ToneVsStarsChart.vue'
 import YourPagesModal from '../components/YourPagesModal.vue'
-import { createCheckoutSession, createPortalSession, deleteAccount, fetchIndustries, fetchMe } from '../api'
+import { analyzeCompetitors, createCheckoutSession, createPortalSession, deleteAccount, fetchIndustries, fetchMe } from '../api'
+import { normalizeCompetitors } from '../utils/competitors'
 import { applyBranding, brandTitle, forgetBrand, rememberBrand, safeLogo } from '../utils/theme'
 import { billingLine } from '../utils/credits'
 import { REQUIRE_ACCEPTANCE, TERMS_VERSION, needsAcceptance } from '../legal/terms'
@@ -67,6 +67,22 @@ const waitTimeResult = ref(null)
 const trendsResult = ref(null)
 const signalsResult = ref(null)
 const competitorsResult = ref(null)
+const competitorList = ref([])
+const comparing = ref(false)
+const compareError = ref('')
+// "Compare" re-runs only the competitor matrix, not every panel.
+async function runCompare() {
+  comparing.value = true
+  compareError.value = ''
+  try {
+    const data = await analyzeCompetitors({ months: months.value, competitors: normalizeCompetitors(competitorList.value) })
+    competitorsResult.value = data.competitors
+  } catch (err) {
+    compareError.value = err?.response?.data?.detail || 'Could not run the comparison. Please try again.'
+  } finally {
+    comparing.value = false
+  }
+}
 const platformsResult = ref(null)
 const reviewList = ref(null)
 const mentionsResult = ref(null)
@@ -122,8 +138,6 @@ watch(me, (m) => {
   else forgetBrand()
 })
 
-const creditInfo = ref(null)
-const creditsPanel = ref(null)
 const billingText = ref('')
 
 const VIEW_LABELS = { combined: 'Combined', google: 'Google', yelp: 'Yelp', opentable: 'OpenTable', doordash: 'DoorDash', grubhub: 'Grubhub', ubereats: 'Uber Eats', web: 'Web mentions' }
@@ -198,7 +212,6 @@ function handleUnifiedResult({ data }) {
   waitTimePreview.value = data.wait_time_preview
   meta.value = data.meta
   billingText.value = billingLine(data.billing)
-  creditsPanel.value?.reload()        // the balance just changed
 }
 </script>
 
@@ -257,8 +270,6 @@ function handleUnifiedResult({ data }) {
         </span>
       </div>
 
-      <CreditsPanel ref="creditsPanel" scope="user" @loaded="creditInfo = $event" />
-
       <UnifiedAnalysisForm
         ref="formRef"
         v-model:months="months"
@@ -268,11 +279,11 @@ function handleUnifiedResult({ data }) {
         :doordash-url="isPaid() ? me.doordash_url : null"
         :ubereats-url="isPaid() ? me.ubereats_url : null"
         :grubhub-url="isPaid() ? me.grubhub_url : null"
-        :credit-info="creditInfo"
         :default-aov="industryDefaultAov"
         :business-location="me.business_location"
         :show-revenue-inputs="isPaid()"
         :show-competitors="isPaid()"
+        :competitors="competitorList"
         :show-mentions="isPaid()"
         @result="handleUnifiedResult"
       />
@@ -343,6 +354,11 @@ function handleUnifiedResult({ data }) {
         <CompetitorShareChart
           :business-location="me.business_location"
           :result="competitorsResult"
+          :competitors="competitorList"
+          @update:competitors="competitorList = $event"
+          @run="runCompare()"
+          :comparing="comparing"
+          :error="compareError"
           :months="months"
         />
       </template>
@@ -353,8 +369,8 @@ function handleUnifiedResult({ data }) {
           technique="Pulls your Yelp, reservation and delivery-app pages alongside Google and compares review volume, ratings and pace per platform, with a warning when a changing platform mix could distort your averages."
         />
         <LockedPanel
-          title="🔥 Wait-Time Revenue Leak Heatmap"
-          chart-name="Wait-Time Revenue Heatmap"
+          title="🔥 Wait-Time and Topic Heatmap"
+          chart-name="Wait-Time and Topic Heatmap"
           :preview-items="waitPreviewItems"
           technique="Phrase detection (“long wait”, “slow service”, “took forever” and similar) on each review's text, matched to the day and hour it was posted."
         />

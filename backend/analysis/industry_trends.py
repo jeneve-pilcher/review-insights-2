@@ -11,13 +11,16 @@ import features
 from typing import List, Optional
 
 from analysis.chart1_sentiment_drift import _parse_dt, _week_start
+from analysis.pii import redact_pii
 from analysis.review_utils import text_reviews
+from analysis.sentiment import score_sentiment
 
 MIN_REVIEWS = 6         # written reviews needed before any trend is shown
 RECENT_DAYS = 28        # "lately" = the newest four weeks of reviews
 MIN_EARLIER = 5         # written reviews needed in the earlier period to compare against
 MIN_HITS = 3            # mentions needed in the recent period before flagging a rise
 MIN_SHIFT = 0.05        # at least 5 percentage points of change
+CELL_REVIEWS = 25       # most reviews listed when a point on the weekly chart is clicked
 MIN_GAP = 0.5           # stars of difference before a theme counts as a complaint (or praise) theme
 
 
@@ -50,7 +53,8 @@ def build_industry_trends(reviews: List[dict], pack: dict, flags: Optional[bool]
     flags = flags_enabled(pack) if flags is None else flags
     items = []
     for r in text_reviews(reviews):
-        items.append({"dt": _parse_dt(r.get("datetime_utc")), "rating": r.get("rating"), "text": r["text"].lower()})
+        items.append({"dt": _parse_dt(r.get("datetime_utc")), "rating": r.get("rating"), "text": r["text"].lower(),
+                      "orig": r["text"], "source": r.get("source", "google")})
     if len(items) < MIN_REVIEWS:
         return {"status": "too_few", "reviews": len(items), "minimum": MIN_REVIEWS, "flags_enabled": flags}
 
@@ -64,6 +68,21 @@ def build_industry_trends(reviews: List[dict], pack: dict, flags: Optional[bool]
     by_week = defaultdict(list)
     for i in dated:
         by_week[_week_start(i["dt"])].append(i)
+
+    # Reviews shown when a point is clicked: one shared list, and each point refers to entries in it by number.
+    pool, pool_ix = [], {}
+    show_tone = not pack.get("clinical")   # clinical words describe the condition, not the experience
+
+    def pool_id(i):
+        key = id(i)
+        if key not in pool_ix:
+            pool_ix[key] = len(pool)
+            pool.append({
+                "rating": i["rating"], "date": i["dt"].strftime("%Y-%m-%d") if i["dt"] else "",
+                "source": i["source"], "text": redact_pii(i["orig"].strip())[:400],
+                "tone": round(score_sentiment(i["orig"]), 2) if show_tone else None,
+            })
+        return pool_ix[key]
 
     themes, alerts = [], []
     for theme in pack["themes"]:
@@ -89,7 +108,19 @@ def build_industry_trends(reviews: List[dict], pack: dict, flags: Optional[bool]
 
         rating_with, rating_without = avg(with_t), avg(without)
         gap = round(rating_with - rating_without, 2) if (rating_with is not None and rating_without is not None and len(with_t) >= MIN_HITS) else None
+        points = []
+        for w in weeks:
+            hits_w = [i for i in by_week[w] if hit(i)]
+            rated = [i["rating"] for i in hits_w if i["rating"] is not None]
+            tones = [score_sentiment(i["orig"]) for i in hits_w] if (show_tone and hits_w) else []
+            points.append({
+                "n": len(by_week[w]), "hits": len(hits_w),
+                "rating": round(sum(rated) / len(rated), 2) if rated else None,
+                "tone": round(sum(tones) / len(tones), 2) if tones else None,
+                "ids": [pool_id(i) for i in sorted(hits_w, key=lambda x: x["dt"], reverse=True)[:CELL_REVIEWS]],
+            })
         entry = {
+            "points": points,
             "id": theme["id"], "label": theme["label"], "mentions": n_hits,
             "share": _share(n_hits, len(items)),
             "series": [_share(sum(1 for i in by_week[w] if hit(i)), len(by_week[w])) for w in weeks],
@@ -111,7 +142,7 @@ def build_industry_trends(reviews: List[dict], pack: dict, flags: Optional[bool]
     themes.sort(key=lambda t: (order.get(t["tone"], 9), -t["mentions"]))
     alerts.sort(key=lambda a: order.get(a["tone"], 9))
     return {"status": "ok", "reviews": len(items), "dated_reviews": len(dated), "weeks": weeks, "themes": themes,
-            "alerts": alerts, "recent_days": RECENT_DAYS, "can_compare": can_compare, "flags_enabled": flags}
+            "alerts": alerts, "pool": pool, "recent_days": RECENT_DAYS, "can_compare": can_compare, "flags_enabled": flags}
 
 
 _PATTERNS = {}

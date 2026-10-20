@@ -176,14 +176,22 @@ def build_wait_time_heatmap(
                 for t in tiers
             }
 
+            # Every star rating's real share of this slot's reviews (adds up to 100%), with the counts behind it.
+            star_counts = {s: sum(1 for r in cell_reviews if r["rating"] == s) for s in (1, 2, 3, 4, 5)}
+            star_pct = {s: (round(100 * c / total_in_cell, 1) if total_in_cell else 0) for s, c in star_counts.items()}
+
             topic_mentions = {}
+            cell_items = []
             for _, r in entries:
+                item = _review_item(r)
                 text = (r.get("text") or "").strip()
-                if not text:
-                    continue
-                found = set(themes_in_text(text, pack)) if pack else set()
-                if _matched_phrases(text):
-                    found.add("wait")
+                found = set()
+                if text:
+                    found = set(themes_in_text(text, pack)) if pack else set()
+                    if _matched_phrases(text):
+                        found.add("wait")
+                item["topics"] = sorted(found)   # which topics this review mentions, so the page can list them
+                cell_items.append(item)
                 for tid in found:
                     topic_mentions[tid] = topic_mentions.get(tid, 0) + 1
 
@@ -192,9 +200,11 @@ def build_wait_time_heatmap(
                 "hour": bucket_label,
                 "review_count": total_in_cell,
                 "tier_pct": tier_pct,
+                "star_counts": star_counts,
+                "star_pct": star_pct,
                 "wait_mentions": cell_mentions.get((day, bucket_label), 0),
                 "topic_mentions": topic_mentions,
-                "reviews": [_review_item(r) for r in cell_reviews],
+                "reviews": cell_items,
             })
 
             if total_in_cell >= 3 and tier1 is not None:

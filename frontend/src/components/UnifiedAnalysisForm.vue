@@ -16,6 +16,8 @@ const props = defineProps({
   showRevenueInputs: { type: Boolean, default: false },
   // Pro/Enterprise: optional competitors, analyzed in the same click.
   showCompetitors: { type: Boolean, default: false },
+  // The competitors list lives on the dashboard and is edited inside the Competitor Semantic Share Matrix.
+  competitors: { type: Array, default: () => [] },
   // Pro/Enterprise with a saved Yelp page: lets the user tick Yelp (one extra pull).
   yelpUrl: { type: String, default: null },
   // Pro/Enterprise with a saved OpenTable, DoorDash, Uber Eats or Grubhub page: each can be ticked (one extra pull each).
@@ -51,14 +53,9 @@ function onMonthsInput(event) {
   if (monthsCheck.value.valid) emit('update:months', monthsCheck.value.value)
 }
 
-const avgOrderValue = ref(props.defaultAov)
-let aovTouched = false      // once someone types their own number, the industry default no longer overwrites it
-watch(() => props.defaultAov, (v) => { if (!aovTouched) avgOrderValue.value = v })
-const multiplier = ref(20)
 const loading = ref(false)
 const error = ref('')
 
-const competitors = ref([])
 const includeYelp = ref(true)
 // Optional platforms the account has saved a page for. Each ticked one is one extra pull (through Apify).
 const includes = reactive({ opentable: true, doordash: true, ubereats: true, grubhub: true })
@@ -86,7 +83,7 @@ const runEstimate = computed(() =>
       sources: sourcesToPull.value,
       mentions: FEATURES.internetMentions && props.showMentions && includeMentions.value,
       mentionPages: clampPages(mentionPages),
-      competitors: normalizeCompetitors(competitors.value).length,
+      competitors: normalizeCompetitors(props.competitors).length,
     },
     props.creditInfo,
   ),
@@ -95,15 +92,6 @@ const estimateBreakdown = computed(() =>
   runEstimate.value ? runEstimate.value.lines.map((line) => `${line.label} ${formatUsd(line.usd)}`).join(' + ') : '',
 )
 const runWarning = computed(() => estimateWarning(runEstimate.value, props.creditInfo))
-
-function addCompetitor() {
-  if (competitors.value.length >= 5) return
-  competitors.value.push({ name: `Competitor ${competitors.value.length + 1}`, search_query: '' })
-}
-
-function removeCompetitor(index) {
-  competitors.value.splice(index, 1)
-}
 
 // `viewOverride` lets the dashboard's view switch re-run instantly with a new view.
 async function runAnalysis(viewOverride) {
@@ -116,14 +104,13 @@ async function runAnalysis(viewOverride) {
   try {
     const data = await analyzeAll({
       months: monthsCheck.value.value,
-      avgOrderValue: avgOrderValue.value,
-      reviewsToCustomersMultiplier: multiplier.value,
       sources: sourcesToPull.value,
       view: typeof viewOverride === 'string' ? viewOverride : props.view,
       mentions: FEATURES.internetMentions && props.showMentions && includeMentions.value,
       mentionPages: clampPages(mentionPages),
       mentionTerms: null,
-      competitors: props.showCompetitors ? normalizeCompetitors(competitors.value) : [],
+      competitors: props.showCompetitors ? normalizeCompetitors(props.competitors) : [],
+      countTowardLimit: typeof viewOverride !== 'string',
     })
     emit('result', { data })
   } catch (err) {
@@ -145,7 +132,7 @@ defineExpose({ runAnalysis })
       window runs faster and uses fewer scraping credits.
     </p>
 
-    <div class="analysis-form">
+    <div class="analysis-form" style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
       <label class="field">
         <span>Analyze the last (months)</span>
         <input
@@ -161,30 +148,9 @@ defineExpose({ runAnalysis })
           @input="onMonthsInput"
         />
       </label>
-      <template v-if="showRevenueInputs">
-        <label class="field">
-          <span>Avg. order value ($)</span>
-          <input v-model.number="avgOrderValue" type="number" min="0" step="0.5" @input="aovTouched = true" />
-        </label>
-        <label class="field">
-          <span>Est. customers per review</span>
-          <input v-model.number="multiplier" type="number" min="1" />
-        </label>
-      </template>
-    </div>
-
-    <div v-if="showCompetitors" class="competitor-inputs" style="margin-top: 14px">
-      <p class="chart-desc" style="margin-bottom: 8px">
-        <strong>Optional: compare against competitors in the same click.</strong> Your own reviews
-        are pulled once and shared; each competitor you add is one extra pull. Paste a Google Maps
-        link if a name is ambiguous.
-      </p>
-      <div v-for="(c, i) in competitors" :key="i" class="competitor-row">
-        <input v-model="c.name" type="text" placeholder="Competitor name (optional)" class="competitor-name" />
-        <input v-model="c.search_query" type="text" placeholder="Location, or a Google Maps URL" class="competitor-query" />
-        <button class="remove-btn" @click="removeCompetitor(i)">✕</button>
-      </div>
-      <button v-if="competitors.length < 5" class="add-btn" @click="addCompetitor">+ Add competitor</button>
+      <button class="run-btn" style="width: auto; padding: 10px 28px" @click="runAnalysis()" :disabled="loading">
+        {{ loading ? 'Analyzing…' : 'Run Analysis' }}
+      </button>
     </div>
 
     <div v-if="yelpUrl" class="source-picker">
@@ -215,10 +181,6 @@ defineExpose({ runAnalysis })
       You have <strong>{{ formatUsd(creditInfo.available_usd) }}</strong> available.
     </div>
     <p v-if="runWarning" class="status error" style="margin-top: 6px">{{ runWarning }}</p>
-
-    <button class="run-btn" style="width: auto; padding: 10px 28px; margin-top: 16px" @click="runAnalysis()" :disabled="loading">
-      {{ loading ? 'Analyzing…' : 'Run Analysis' }}
-    </button>
 
     <p v-if="!monthsCheck.valid" class="status error" style="margin-top: 6px">{{ monthsCheck.message }}</p>
     <p v-else class="oc-note" style="margin-top: 6px">

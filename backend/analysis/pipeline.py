@@ -244,11 +244,11 @@ def assemble(
 
         # Competitors compare Google to Google: your own Google reviews are reused
         # (no extra pull); each competitor is one extra pull.
-        if competitors:
-            businesses = [{"name": "Your Business", "search_query": location}] + competitors
-            result["competitors"] = build_competitor_share(
-                businesses, months, own_reviews=reviews_by_source["google"]
-            )
+        # Your own business is always in the comparison, even with no competitors added.
+        businesses = [{"name": "Your Business", "search_query": location}] + list(competitors or [])
+        result["competitors"] = build_competitor_share(
+            businesses, months, own_reviews=reviews_by_source["google"]
+        )
     else:
         result["signals"] = trim_signals_for_preview(build_revenue_signals(tone_reviews))
         result["trends"] = trim_for_preview(build_trends(tone_reviews))

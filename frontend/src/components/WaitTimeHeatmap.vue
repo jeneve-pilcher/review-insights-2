@@ -4,7 +4,9 @@ import DataBasis from './DataBasis.vue'
 import NlpCallout from './NlpCallout.vue'
 import { heatmapReadItems } from '../utils/nlpInsights'
 
-const TIER_COLORS = ['#2ecc71', '#f1c40f', '#e74c3c']
+// Every star rating, best to worst, as its real share of the reviews posted in a slot.
+const STARS = [5, 4, 3, 2, 1]
+const STAR_COLORS = { 5: '#2ecc71', 4: '#a3d977', 3: '#f1c40f', 2: '#e67e22', 1: '#e74c3c' }
 
 const props = defineProps({
   result: { type: Object, default: null },
@@ -46,35 +48,47 @@ const busiestSlot = computed(() => {
   return best
 })
 
+// Reviews behind the picked topic, newest first; click a box to narrow to that day and time.
+const slot = ref(null)
+function pickSlot(day, hour) {
+  const same = slot.value && slot.value.day === day && slot.value.hour === hour
+  slot.value = same || !countFor(cellFor(day, hour)) ? null : { day, hour }
+}
+const topicReviews = computed(() => {
+  const out = []
+  for (const c of props.result?.matrix || []) {
+    if (slot.value && (c.day !== slot.value.day || c.hour !== slot.value.hour)) continue
+    for (const r of c.reviews || []) {
+      if ((r.topics || []).includes(topic.value)) out.push({ ...r, day: c.day, hour: c.hour })
+    }
+  }
+  return out.sort((a, b) => String(b.review_date).localeCompare(String(a.review_date)))
+})
+const shownReviews = computed(() => topicReviews.value.slice(0, 30))
+function when(d) { try { return new Date(d).toLocaleDateString() } catch { return '' } }
+
 function cellTitle(day, hour) {
   const cell = cellFor(day, hour)
   const mentions = countFor(cell)
   const base = `${day} ${hour}`
-  return mentions ? `${base}: ${mentions} review(s) mention ${topicLabel.value.toLowerCase()}` : base
+  const stars = cell?.review_count
+    ? `\n${cell.review_count} review${cell.review_count === 1 ? '' : 's'}: ${STARS.map((s) => `${s}★ ${cell.star_pct?.[s] ?? 0}% (${cell.star_counts?.[s] ?? 0})`).join(' · ')}`
+    : '\nNo reviews posted in this slot'
+  const talk = mentions ? `\n${mentions} review(s) mention ${topicLabel.value.toLowerCase()}` : ''
+  return base + stars + talk
 }
 
-const maxDrag = computed(() => {
-  if (!props.result?.revenue_drag?.length) return 1
-  return Math.max(...props.result.revenue_drag.map((r) => r.estimated_dollars))
-})
-
-const sortedDrag = computed(() => {
-  if (!props.result) return []
-  return [...props.result.revenue_drag].sort((a, b) => b.estimated_dollars - a.estimated_dollars)
-})
 </script>
 
 <template>
   <section class="chart-section">
     <div class="title-row">
-      <h3>🔥 Wait-Time Revenue Leak Heatmap</h3>
+      <h3>🔥 Wait-Time and Topic Heatmap</h3>
       <DataBasis :meta="meta" uses="both" />
     </div>
     <p class="chart-desc">
-      Maps the day and hour reviews were posted against your top 3 dominant star tiers, lets you see when reviews mention waiting or any of your industry's topics, and estimates the dollar
-      value of service-delay drag using your average order value. Time of day uses Google
+      Maps the day and hour reviews were posted. Each box is filled by the real share of every star rating (5★ to 1★) among the reviews posted in that slot, and hovering shows the exact percentages and counts. It also lets you see when reviews mention waiting or any of your industry's topics. Time of day uses Google
       reviews only, because other platforms may give just a date.
-      <em>Dollar figures are a heuristic estimate, not a certified financial calculation.</em>
     </p>
 
     <p v-if="loading" class="status">Analyzing…</p>
@@ -93,7 +107,7 @@ const sortedDrag = computed(() => {
           type="button"
           class="topic-chip"
           :class="{ active: topic === t.id }"
-          @click="topic = t.id"
+          @click="topic = t.id; slot = null"
         >{{ t.label }}</button>
       </div>
       <p v-if="busiestSlot" class="topic-busiest">
@@ -102,15 +116,15 @@ const sortedDrag = computed(() => {
       <p v-else class="topic-busiest">No reviews in these time slots mention {{ topicLabel.toLowerCase() }}.</p>
 
       <div class="heatmap-legend">
-        <span v-for="(tier, i) in result.dominant_tiers" :key="tier">
-          <span class="swatch" :style="{ background: TIER_COLORS[i] }"></span>
-          {{ tier }}★ (Dominant #{{ i + 1 }})
+        <span v-for="s in STARS" :key="s">
+          <span class="swatch" :style="{ background: STAR_COLORS[s] }"></span>
+          {{ s }}★
         </span>
       </div>
       <p class="mention-key">
         <span class="mention-key-badge">💬 2</span>
         A speech bubble means reviews posted in that day and time <strong>mention the topic picked above</strong>
-        (waiting, by default: “long wait”, “took forever”). The number is how many. Hover a box to see which reviews.
+        (waiting, by default: “long wait”, “took forever”). The number is how many. Hover a box for its star percentages; click it to list those reviews below.
       </p>
 
       <div class="heatmap-grid">
@@ -125,15 +139,17 @@ const sortedDrag = computed(() => {
             :key="hour"
             class="heatmap-cell heatmap-cell-rel"
             :title="cellTitle(day, hour)"
+            :class="{ 'heatmap-picked': slot && slot.day === day && slot.hour === hour }"
+            @click="pickSlot(day, hour)"
           >
             <template v-if="cellFor(day, hour)?.review_count">
               <div
-                v-for="(tier, i) in result.dominant_tiers"
-                :key="tier"
+                v-for="s in STARS"
+                :key="s"
                 class="heatmap-segment"
                 :style="{
-                  width: (cellFor(day, hour).tier_pct[tier] || 0) + '%',
-                  background: TIER_COLORS[i],
+                  width: (cellFor(day, hour).star_pct?.[s] || 0) + '%',
+                  background: STAR_COLORS[s],
                 }"
               ></div>
             </template>
@@ -143,20 +159,25 @@ const sortedDrag = computed(() => {
         </div>
       </div>
 
-      <div v-if="sortedDrag.length" class="revenue-drag">
-        <h4>💸 Estimated Revenue Drag</h4>
-        <div v-for="(row, i) in sortedDrag" :key="i" class="drag-row">
-          <span class="drag-label">{{ row.day }} {{ row.hour }}</span>
-          <div class="drag-bar-track">
-            <div
-              class="drag-bar-fill"
-              :style="{ width: (row.estimated_dollars / maxDrag) * 100 + '%' }"
-            ></div>
-          </div>
-          <span class="drag-value">${{ row.estimated_dollars.toLocaleString() }}</span>
-        </div>
+      <div class="topic-reviews">
+        <h4>
+          Reviews that mention {{ topicLabel.toLowerCase() }}
+          <span v-if="slot">— {{ slot.day }} {{ slot.hour }}</span>
+          ({{ topicReviews.length }})
+        </h4>
+        <button v-if="slot" type="button" class="topic-chip" @click="slot = null">Show all times</button>
+        <p v-if="!topicReviews.length" class="status">None in {{ slot ? 'this slot' : 'these time slots' }}. Click a box with a 💬 to see just that time.</p>
+        <ul v-else class="topic-review-list">
+          <li v-for="(r, i) in shownReviews" :key="i">
+            <div class="topic-review-meta">
+              {{ r.rating }}★ · {{ r.day }} {{ r.hour }} · {{ when(r.review_date) }}
+            </div>
+            <div>{{ r.text }}</div>
+          </li>
+        </ul>
+        <p v-if="topicReviews.length > shownReviews.length" class="status">Showing the newest {{ shownReviews.length }} of {{ topicReviews.length }}.</p>
       </div>
-      <p v-else class="status">No significant wait-time revenue drag detected.</p>
+
     </template>
     <p v-else-if="result" class="status">
       No Google reviews are in this view, and time of day uses Google reviews. Switch the view
@@ -197,6 +218,12 @@ const sortedDrag = computed(() => {
   cursor: pointer;
 }
 .topic-chip.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+.heatmap-cell { cursor: pointer; }
+.heatmap-picked { outline: 2px solid #2563eb; outline-offset: -2px; }
+.topic-reviews { margin: 14px 0; }
+.topic-review-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.topic-review-list li { border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 8px; padding: 8px 10px; font-size: 0.9rem; line-height: 1.45; }
+.topic-review-meta { font-size: 0.8rem; opacity: 0.75; margin-bottom: 2px; }
 .topic-busiest { margin: 4px 0 8px; font-size: 0.9rem; }
 .mention-key {
   margin: 8px 0 12px;

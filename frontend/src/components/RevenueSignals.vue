@@ -55,6 +55,15 @@ const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + wri
         <p class="signal-detail">{{ s.detail }}</p>
         <p class="signal-action"><strong>What to check:</strong> {{ s.action }}</p>
         <span class="signal-basis">{{ BASIS[s.basis] }}</span>
+        <details v-if="s.reviews && s.reviews.length" class="signal-reviews">
+          <summary>Show the {{ s.reviews.length }} written review{{ s.reviews.length === 1 ? '' : 's' }} behind this</summary>
+          <ul>
+            <li v-for="(r, j) in s.reviews" :key="j">
+              <div class="signal-review-meta">{{ r.rating }}★ · {{ r.date }}</div>
+              <div>{{ r.text }}</div>
+            </li>
+          </ul>
+        </details>
       </div>
     </template>
   </section>
@@ -93,6 +102,11 @@ const BASIS = { all: 'All reviews', written: 'Written reviews', both: 'All + wri
   color: #444;
 }
 
+.signal-reviews { margin-top: 8px; }
+.signal-reviews summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.signal-reviews ul { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.signal-reviews li { border: 1px solid #e4e6ea; border-radius: 8px; padding: 6px 8px; background: white; line-height: 1.4; }
+.signal-review-meta { font-size: 11px; color: #666; margin-bottom: 2px; }
 .signal-basis {
   display: inline-block;
   font-size: 11px;
