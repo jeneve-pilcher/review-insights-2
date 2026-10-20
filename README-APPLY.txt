@@ -316,3 +316,41 @@ EARLIER (v29), unchanged:
 HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   For each day/hour slot where good reviews dropped and wait language appears: estimated shortfall in reviews x 20
   customers per review (an assumption) x your average order value. The app reads reviews, not sales, so it is an estimate.
+
+=== Review filters and phrases; negative review alerts removed (v30) ===
+- Negative Review Alerts panel removed from the dashboard (paid and free-tier locked panel)
+  and from the company location view. The alert email for a single-business analysis is off
+  (backend/main.py: alert_email=None).
+- NOT changed: company-page tasks (OrgTasks) and monitor emails. Say if those should go too.
+- Reviews & draft replies now filters by All, 1-2 stars, 3-5 stars, Needs a reply, Replied,
+  No stars (web). New search box for words/phrases, plus clickable "Words and phrases that
+  come up" chips built from the reviews currently shown.
+- Landing wording (industries.js, roles.js, revenue.js) updated to match.
+- Checked with a node test of filterReviews/topPhrases. Not seen in a browser.
+
+=== Company page switched off (v30) ===
+- frontend/src/content/features.js: companyPage: false. The "Company (many locations)" tab and
+  the auto-landing in it are hidden. Set it to true to bring the page back. Backend routes and
+  billing code are untouched. Managers still switch locations from the dashboard.
+- Side effect: with the page hidden there is no screen to create a company, add locations,
+  invite people or set up billing. Existing companies keep working for managers.
+
+=== Trends appear with fewer reviews (v30) ===
+- analysis/industry_trends.py: written reviews needed 15 -> 6; earlier-period comparison 10 -> 5;
+  mentions before a rise/fall is flagged 5 -> 3.
+- analysis/trends.py (rising/falling topics): reviews per window 10 -> 5; time span 28 -> 14 days.
+- Trade-off: with few reviews a flagged rise or fall can be chance. Put the old numbers back if
+  it flags too much. Only syntax-checked, not run against real reviews.
+
+=== Wait-time heatmap key made clearer (v30) ===
+- WaitTimeHeatmap.vue: the speech bubble in a box now shows the count (e.g. "💬 2") on a light badge,
+  and a key line under the legend explains it means reviews mention waiting or slow service.
+
+=== Time and topic map on the heatmap (v30) ===
+- analysis/chart2_wait_time_heatmap.py: new optional pack argument. Each grid cell now carries
+  topic_mentions (how many reviews in that slot mention each industry theme, plus "wait"), and the
+  result lists topics. analysis/pipeline.py passes the industry pack in.
+- WaitTimeHeatmap.vue: topic chips above the grid (Waiting by default, then the industry's themes).
+  The speech-bubble count and the hover text follow the chosen topic; a line names the busiest slot.
+- Same curated word lists as the industry trends. Time is when the review was posted, Google only.
+- Backend part tested with stand-ins for the other modules; the Vue part was only tag-checked.

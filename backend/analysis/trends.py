@@ -35,8 +35,8 @@ _GENERIC_UNIGRAMS = {
     "always", "best", "amazing", "awesome", "excellent", "recommend",
 }
 
-MIN_REVIEWS_PER_WINDOW = 10
-MIN_SPAN_DAYS = 28
+MIN_REVIEWS_PER_WINDOW = 5
+MIN_SPAN_DAYS = 14
 MIN_TERM_DOCS = 3          # a topic must appear in at least 3 reviews
 G2_THRESHOLD = 6.63        # chi-square, 1 degree of freedom, p < 0.01
 TOP_N = 8

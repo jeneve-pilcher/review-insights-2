@@ -6,6 +6,7 @@ import {
   FILTERS,
   countByFilter,
   filterReviews,
+  topPhrases,
   platformLabel,
   replyStatusLabel,
   reviewPageUrl,
@@ -53,7 +54,14 @@ watch(() => props.locationId, loadReplies, { immediate: true })
 const items = computed(() => props.reviewList?.items ?? [])
 const sources = computed(() => [...new Set(items.value.map((r) => r.source))])
 const counts = computed(() => countByFilter(items.value, replies.value))
-const filtered = computed(() => filterReviews(items.value, { filter: filter.value, source: source.value, replies: replies.value }))
+const query = ref('')
+const filtered = computed(() => filterReviews(items.value, { filter: filter.value, source: source.value, replies: replies.value, query: query.value }))
+// Words and phrases that come up in the reviews under the current stars/platform choice, as one-click filters.
+const phrases = computed(() => topPhrases(filterReviews(items.value, { filter: filter.value, source: source.value, replies: replies.value })))
+function setQuery(text) {
+  query.value = query.value.trim().toLowerCase() === text ? '' : text
+  shownCount.value = PAGE
+}
 const shown = computed(() => filtered.value.slice(0, shownCount.value))
 
 function setFilter(id) {
@@ -198,6 +206,27 @@ const stars = (n) => (n == null ? '' : '★'.repeat(n) + '☆'.repeat(5 - n))
           <option value="all">All platforms</option>
           <option v-for="s in sources" :key="s" :value="s">{{ platformLabel(s) }}</option>
         </select>
+      </div>
+      <div class="rr-filters">
+        <input
+          v-model="query"
+          type="search"
+          class="rr-search"
+          placeholder="Search for a word or phrase, e.g. long wait"
+          @input="shownCount = PAGE"
+        />
+      </div>
+      <div v-if="phrases.length" class="rr-filters">
+        <span class="oc-note" style="margin: 0">Words and phrases that come up:</span>
+        <button
+          v-for="p in phrases"
+          :key="p.text"
+          class="rr-chip"
+          :class="{ active: query.trim().toLowerCase() === p.text }"
+          @click="setQuery(p.text)"
+        >
+          {{ p.text }} <span class="rr-count">{{ p.count }}</span>
+        </button>
       </div>
       <p v-if="reviewList.total > reviewList.shown" class="oc-note">
         Showing the newest {{ reviewList.shown }} of {{ reviewList.total }} reviews.
@@ -424,4 +453,5 @@ const stars = (n) => (n == null ? '' : '★'.repeat(n) + '☆'.repeat(5 - n))
   color: white;
   border-color: #1a1a1a;
 }
+.rr-search { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border, #d0d5dd); font: inherit; min-width: 260px; max-width: 100%; }
 </style>

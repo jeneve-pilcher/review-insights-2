@@ -99,7 +99,7 @@ export function industryNote(roll) {
   }
   if (roll.stale_locations) return `Your locations were last checked under a different industry. Their industry numbers appear after the next check (or press Run now on a location).`
   if (roll.locations_total === 0) return 'Add locations to see industry numbers here.'
-  return 'Industry numbers appear after a location has been checked with enough written reviews (at least 15). Press Run now on a location to check it.'
+  return 'Industry numbers appear after a location has been checked with enough written reviews (at least 6). Press Run now on a location to check it.'
 }
 
 export function trendNote(trend) {

@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import CompetitorShareChart from '../components/CompetitorShareChart.vue'
 import LockedPanel from '../components/LockedPanel.vue'
 import MentionsPanel from '../components/MentionsPanel.vue'
-import NegativeReviewAlerts from '../components/NegativeReviewAlerts.vue'
 import OrgConsole from '../components/OrgConsole.vue'
 import LocationDetail from '../components/LocationDetail.vue'
 import LocationSwitcher from '../components/LocationSwitcher.vue'
@@ -31,7 +30,7 @@ import { billingLine } from '../utils/credits'
 import { REQUIRE_ACCEPTANCE, TERMS_VERSION, needsAcceptance } from '../legal/terms'
 import { supabase } from '../supabase'
 import AdminBilling from '../components/AdminBilling.vue'
-import { heatmapReadItems, negativeReadItems } from '../utils/nlpInsights'
+import { heatmapReadItems } from '../utils/nlpInsights'
 
 const router = useRouter()
 const route = useRoute()
@@ -65,7 +64,6 @@ const showingLocation = computed(() => isManager.value && activeLocation.value &
 
 const sentimentResult = ref(null)
 const waitTimeResult = ref(null)
-const negativeResult = ref(null)
 const trendsResult = ref(null)
 const signalsResult = ref(null)
 const competitorsResult = ref(null)
@@ -73,12 +71,10 @@ const platformsResult = ref(null)
 const reviewList = ref(null)
 const mentionsResult = ref(null)
 const waitTimePreview = ref(null)
-const negativePreview = ref(null)
 const meta = ref(null)
 
 // Free-tier teasers: a real finding from the user's own reviews.
 const waitPreviewItems = computed(() => heatmapReadItems(waitTimePreview.value))
-const negativePreviewItems = computed(() => negativeReadItems(negativePreview.value))
 
 async function loadMe() {
   loadingMe.value = true
@@ -95,7 +91,7 @@ onMounted(async () => {
   fetchIndustries().then((d) => { industries.value = d.industries }).catch(() => {})
   await loadMe()
   // Someone invited to a company who isn't on a paid plan lands in the company view.
-  if (me.value?.org_role && me.value.org_role !== 'manager' && !isPaid()) mode.value = 'company'
+  if (FEATURES.companyPage && me.value?.org_role && me.value.org_role !== 'manager' && !isPaid()) mode.value = 'company'
 })
 
 // First-time setup finished: the Google business, plus any review pages saved with it.
@@ -170,7 +166,7 @@ async function handleManageSubscription() {
 }
 
 const isPaid = () => me.value && ['pro', 'enterprise'].includes(me.value.tier)
-const showCompany = () => isPaid() || Boolean(me.value?.org_role) || Boolean(me.value?.has_contract)
+const showCompany = () => FEATURES.companyPage && (isPaid() || Boolean(me.value?.org_role) || Boolean(me.value?.has_contract))
 
 async function handleDeleteAccount() {
   const confirmed = window.confirm(
@@ -190,7 +186,6 @@ async function handleDeleteAccount() {
 function handleUnifiedResult({ data }) {
   sentimentResult.value = data.sentiment_drift
   waitTimeResult.value = data.wait_time_heatmap
-  negativeResult.value = data.negative_reviews
   trendsResult.value = data.trends
   signalsResult.value = data.signals
   competitorsResult.value = data.competitors
@@ -201,7 +196,6 @@ function handleUnifiedResult({ data }) {
   aiSummaryResult.value = data.ai_summary
   view.value = data.meta.view
   waitTimePreview.value = data.wait_time_preview
-  negativePreview.value = data.negative_preview
   meta.value = data.meta
   billingText.value = billingLine(data.billing)
   creditsPanel.value?.reload()        // the balance just changed
@@ -346,7 +340,6 @@ function handleUnifiedResult({ data }) {
 
       <template v-if="isPaid()">
         <WaitTimeHeatmap :result="waitTimeResult" :meta="meta" />
-        <NegativeReviewAlerts :business-location="me.business_location" :result="negativeResult" :meta="meta" />
         <CompetitorShareChart
           :business-location="me.business_location"
           :result="competitorsResult"
@@ -364,12 +357,6 @@ function handleUnifiedResult({ data }) {
           chart-name="Wait-Time Revenue Heatmap"
           :preview-items="waitPreviewItems"
           technique="Phrase detection (“long wait”, “slow service”, “took forever” and similar) on each review's text, matched to the day and hour it was posted."
-        />
-        <LockedPanel
-          title="🚨 Negative Review Alerts"
-          chart-name="Negative Review Alerts"
-          :preview-items="negativePreviewItems"
-          technique="Sentiment scoring, topic extraction across negative reviews, and automatic removal of emails, phone numbers and order numbers."
         />
         <LockedPanel
           title="🏁 Competitor Semantic Share Matrix"

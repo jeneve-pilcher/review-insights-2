@@ -383,7 +383,7 @@ def analyze_all(
         paid=paid,
         avg_order_value=req.avg_order_value,
         reviews_to_customers_multiplier=req.reviews_to_customers_multiplier,
-        alert_email=current_user.email,
+        alert_email=None,          # negative-review alert emails are switched off
         competitors=clean_competitors([c.model_dump() for c in req.competitors]),
         mentions=mentions,
         unrated=unrated,

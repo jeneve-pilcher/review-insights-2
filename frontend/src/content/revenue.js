@@ -33,8 +33,8 @@ export const REVENUE_ITEMS = [
     icon: '✅',
     tone: 'apricot',
     title: 'Negative reviews nobody followed up on',
-    look: '1\u20132\u2605 reviews, tagged by topic.',
-    see: 'Draft replies to reviews (not healthcare), and filter good and bad reviews.',
+    look: 'Every 1\u20132\u2605 review, in one click.',
+    see: 'Filter by stars, words and phrases, then draft replies (not healthcare).',
     plan: 'Pro',
   },
   {

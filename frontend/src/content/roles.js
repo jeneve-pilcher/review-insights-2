@@ -7,7 +7,7 @@ export const ROLES = [
     tone: 'burnt',
     title: 'Owner or general manager',
     purpose: 'spot a drifting rating and the complaints that need attention',
-    uses: ['Sentiment drift: weekly rating and tone', 'Industry themes, week by week', 'Negative reviews flagged on your dashboard (Pro)'],
+    uses: ['Sentiment drift: weekly rating and tone', 'Industry themes, week by week', 'Filter reviews by stars, words and phrases (Pro)'],
   },
   {
     id: 'marketing',
@@ -23,7 +23,7 @@ export const ROLES = [
     tone: 'apricot',
     title: 'Guest or patient experience lead',
     purpose: 'see what people complain about and make sure it gets answered',
-    uses: ['Negative reviews with the topics people raise (Pro)', 'Draft replies to reviews, filtered to the good or the bad (Pro, not healthcare)', 'Wait-time patterns by hour (Pro)'],
+    uses: ['Filter reviews to 1–2★ or 3–5★ and by the words people use (Pro)', 'Draft replies to reviews (Pro, not healthcare)', 'Wait-time patterns by hour (Pro)'],
   },
 ]
 

@@ -205,7 +205,7 @@ def assemble(
         # Time of day is only meaningful for Google (other platforms may give just a date).
         google_in_view = [r for r in reviews if r.get("source", "google") == "google"]
         result["wait_time_heatmap"] = build_wait_time_heatmap(
-            google_in_view, avg_order_value, reviews_to_customers_multiplier
+            google_in_view, avg_order_value, reviews_to_customers_multiplier, pack=pack_for_ai
         )
         result["negative_reviews"] = build_negative_reviews(reviews, location, alert_email=alert_email)
         result["trends"] = build_trends(tone_reviews)

@@ -4,7 +4,6 @@ import { orgApi } from '../api'
 import { MAX_MONTHS, parseMonths } from '../utils/months'
 import { ratingClass, signed, sparkline, timeAgo } from '../utils/orgFormat'
 import MentionsPanel from './MentionsPanel.vue'
-import NegativeReviewAlerts from './NegativeReviewAlerts.vue'
 import PlatformComparison from './PlatformComparison.vue'
 import ReviewReplies from './ReviewReplies.vue'
 import RevenueSignals from './RevenueSignals.vue'
@@ -236,7 +235,6 @@ const viewChoices = computed(() => (analysis.value && analysis.value.meta.source
         <LocationProviders v-if="providersOn" :location-id="loc.id" />
         <MentionsPanel v-if="FEATURES.internetMentions && analysis.mentions" :result="analysis.mentions" />
         <WaitTimeHeatmap :result="analysis.wait_time_heatmap" :meta="analysis.meta" />
-        <NegativeReviewAlerts :business-location="loc.name" :result="analysis.negative_reviews" :meta="analysis.meta" />
       </template>
     </template>
   </div>

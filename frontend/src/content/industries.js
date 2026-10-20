@@ -9,7 +9,7 @@ export const EVERY_INDUSTRY = [
   "Sentiment drift: weekly review volume and tone, with early-warning flags",
   "Revenue signals in plain English: what is worth acting on first (Pro)",
   "Your industry's trends, flagged only when there is enough evidence",
-  "Negative reviews flagged on your dashboard, and draft replies to reviews outside healthcare (Pro)"
+  "Filter reviews by stars, words and phrases, and draft replies outside healthcare (Pro)"
 ]
 
 export const INDUSTRIES = [
@@ -34,7 +34,7 @@ export const INDUSTRIES = [
       "A wait-time heatmap by day and hour, with the revenue estimated to be at stake",
       "Your themes week by week: waits, order mistakes, portions and value, takeout and delivery",
       "Google, Yelp, DoorDash, Uber Eats and Grubhub side by side",
-      "Negative reviews flagged and tagged with what they're about"
+      "Reviews filtered by stars, words and phrases"
     ],
     "integrations": {
       "recommended": [
@@ -157,7 +157,7 @@ export const INDUSTRIES = [
       "OpenTable food, service, ambience and value scores over time",
       "Your themes week by week: pacing between courses, ambiance and noise, value for price, special occasions, wine",
       "OpenTable, Yelp and Google side by side",
-      "Negative reviews flagged and tagged with what they're about"
+      "Reviews filtered by stars, words and phrases"
     ],
     "integrations": {
       "recommended": [
@@ -280,7 +280,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: waits, quoted versus actual times, billing and insurance, provider communication, testing",
       "Compare clinics side by side and see which one stands out on each theme",
-      "Negative reviews flagged and tagged with what they're about",
+      "Reviews filtered by stars, words and phrases",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -415,7 +415,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: scheduling, comfort and gentleness, explaining treatment, billing and insurance, cleanliness",
       "Compare practices side by side and see which one stands out on each theme",
-      "Negative reviews flagged and tagged with what they're about",
+      "Reviews filtered by stars, words and phrases",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -549,7 +549,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: getting appointments, follow-up and results, phone and portal, bedside manner, billing",
       "Compare practices side by side and see which one stands out on each theme",
-      "Negative reviews flagged and tagged with what they're about",
+      "Reviews filtered by stars, words and phrases",
       "Optional: numbers for individual doctors from Zocdoc, switched on by your account administrator and shown only to the people you permit"
     ],
     "integrations": {
@@ -670,7 +670,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: service, quality, price and value, waits, cleanliness",
       "Google and Yelp side by side",
-      "Negative reviews flagged and tagged with what they're about"
+      "Reviews filtered by stars, words and phrases"
     ],
     "integrations": {
       "recommended": [
@@ -761,7 +761,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: stock, checkout lines, returns, price, staff help",
       "Google and Yelp side by side",
-      "Negative reviews flagged and tagged with what they're about"
+      "Reviews filtered by stars, words and phrases"
     ],
     "integrations": {
       "recommended": [
@@ -884,7 +884,7 @@ export const INDUSTRIES = [
     "graphs": [
       "Your themes week by week: cleanliness, check-in, sleep, staff, price and fees",
       "Google and Yelp side by side",
-      "Negative reviews flagged and tagged with what they're about"
+      "Reviews filtered by stars, words and phrases"
     ],
     "integrations": {
       "recommended": [

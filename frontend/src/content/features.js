@@ -2,4 +2,5 @@
 export const FEATURES = {
   aiSummaries: false,
   internetMentions: false,
+  companyPage: false, // the multi-location Company page; managers still switch locations on the dashboard
 }

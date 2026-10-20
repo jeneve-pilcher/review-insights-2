@@ -13,10 +13,10 @@ from typing import List, Optional
 from analysis.chart1_sentiment_drift import _parse_dt, _week_start
 from analysis.review_utils import text_reviews
 
-MIN_REVIEWS = 15        # written reviews needed before any trend is shown
+MIN_REVIEWS = 6         # written reviews needed before any trend is shown
 RECENT_DAYS = 28        # "lately" = the newest four weeks of reviews
-MIN_EARLIER = 10        # written reviews needed in the earlier period to compare against
-MIN_HITS = 5            # mentions needed in the recent period before flagging a rise
+MIN_EARLIER = 5         # written reviews needed in the earlier period to compare against
+MIN_HITS = 3            # mentions needed in the recent period before flagging a rise
 MIN_SHIFT = 0.05        # at least 5 percentage points of change
 MIN_GAP = 0.5           # stars of difference before a theme counts as a complaint (or praise) theme
 

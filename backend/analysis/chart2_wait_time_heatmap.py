@@ -4,6 +4,7 @@ from typing import List
 from dateutil import parser as date_parser
 
 from analysis.outscraper_client import dominant_tiers
+from analysis.industry_trends import themes_in_text
 from analysis.pii import redact_pii
 from analysis.review_utils import has_text, text_reviews
 from analysis.sentiment import WAIT_TIME_PHRASES, contains_any_phrase
@@ -111,6 +112,7 @@ def build_wait_time_heatmap(
     reviews: List[dict],
     avg_order_value: float = 35.0,
     reviews_to_customers_multiplier: float = 20.0,
+    pack: dict = None,
 ) -> dict:
     """
     Takes an already-fetched review list (no scraping happens here).
@@ -125,7 +127,7 @@ def build_wait_time_heatmap(
     if not reviews:
         return {
             "dominant_tiers": [], "matrix": [], "revenue_drag": [], "summary": None,
-            "wait_reviews": [], "wait_phrases": WAIT_TIME_PHRASES, "coverage": None,
+            "wait_reviews": [], "wait_phrases": WAIT_TIME_PHRASES, "coverage": None, "topics": [],
         }
 
     summary, cell_mentions, mention_items = _wait_scan(reviews)
@@ -148,6 +150,12 @@ def build_wait_time_heatmap(
     total_tier1 = sum(1 for r in reviews if r["rating"] == tier1) if tier1 else 0
     baseline_share = total_tier1 / len(reviews) if reviews else 0
 
+    # Time-and-topic map: besides waiting, count how many reviews in each slot mention each of the industry's
+    # themes (same curated word lists as the industry trends). Plain word matching, no model.
+    topics = [{"id": "wait", "label": "Waiting / slow service"}]
+    if pack:
+        topics += [{"id": t["id"], "label": t["label"]} for t in pack["themes"] if t["id"] != "wait"]
+
     matrix = []
     revenue_drag = []
 
@@ -168,12 +176,24 @@ def build_wait_time_heatmap(
                 for t in tiers
             }
 
+            topic_mentions = {}
+            for _, r in entries:
+                text = (r.get("text") or "").strip()
+                if not text:
+                    continue
+                found = set(themes_in_text(text, pack)) if pack else set()
+                if _matched_phrases(text):
+                    found.add("wait")
+                for tid in found:
+                    topic_mentions[tid] = topic_mentions.get(tid, 0) + 1
+
             matrix.append({
                 "day": day,
                 "hour": bucket_label,
                 "review_count": total_in_cell,
                 "tier_pct": tier_pct,
                 "wait_mentions": cell_mentions.get((day, bucket_label), 0),
+                "topic_mentions": topic_mentions,
                 "reviews": [_review_item(r) for r in cell_reviews],
             })
 
@@ -206,6 +226,7 @@ def build_wait_time_heatmap(
         "summary": summary,
         "wait_reviews": mention_items,
         "wait_phrases": WAIT_TIME_PHRASES,
+        "topics": topics,
         "coverage": {
             "total_reviews": len(reviews),
             "on_grid": placed,
