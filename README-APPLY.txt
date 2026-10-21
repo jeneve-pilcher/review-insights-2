@@ -467,3 +467,13 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   only the top three star tiers, the legend lists 1-5 stars, and the hover text gives the review count and
   each star's percentage and count. The old top-tier data is still sent (the revenue-drag maths used it).
 - Not seen in a browser.
+
+=== Forgot password (v30) ===
+- LoginView.vue: a "Forgot password?" link under the login form. It asks for the email already typed,
+  sends Supabase's reset email (redirecting to /login?reset=1) and always shows the same message.
+  Following the link opens the "Choose a new password" screen (the same one invited people use).
+- Needs in Supabase: Authentication -> URL Configuration -> Redirect URLs must allow your site's
+  /login page, including ?reset=1 (add https://YOUR-SITE/** or https://YOUR-SITE/login?reset=1).
+  Reset emails go through Supabase's own sender, so set up your own SMTP there (Authentication ->
+  SMTP settings) or the built-in sender will only allow a few per hour.
+- Not tried in a browser or against Supabase.

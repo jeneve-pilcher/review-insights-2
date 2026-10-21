@@ -21,8 +21,30 @@ const newPassword2 = ref('')
 const pwError = ref('')
 const pwLoading = ref(false)
 
+// Someone who clicked the emailed "reset your password" link comes back to /login?reset=1 and chooses a new password.
+const isReset = computed(() => route.query.reset !== undefined)
+const wantsNewPassword = () => route.query.invited !== undefined || route.query.reset !== undefined
+
+// "Forgot password?": ask for the email and send the reset link. The answer is the same whether or not an account exists.
+const forgotMode = ref(false)
+const forgotSent = ref(false)
+const forgotError = ref('')
+const forgotLoading = ref(false)
+
+async function sendReset() {
+  forgotError.value = ''
+  if (!email.value) { forgotError.value = 'Enter your email address first.'; return }
+  forgotLoading.value = true
+  const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email.value.trim(), {
+    redirectTo: `${window.location.origin}/login?reset=1`,
+  })
+  forgotLoading.value = false
+  if (resetErr) { forgotError.value = resetErr.message; return }
+  forgotSent.value = true
+}
+
 async function checkInvite() {
-  if (route.query.invited === undefined) return
+  if (!wantsNewPassword()) return
   const { data } = await supabase.auth.getSession()
   if (data?.session) settingPassword.value = true
 }
@@ -51,7 +73,7 @@ const brandName = computed(() => (branding.value ? brandTitle(branding.value) : 
 onMounted(() => {
   checkInvite()
   supabase.auth.onAuthStateChange((event) => {
-    if (route.query.invited !== undefined && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) settingPassword.value = true
+    if (wantsNewPassword() && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) settingPassword.value = true
   })
   const saved = recallBrand() // a return visit starts branded, without a flash of the default look
   if (saved) {
@@ -141,8 +163,9 @@ function handleBrandSso() {
 <template>
   <div v-if="settingPassword" class="auth-screen">
     <div class="auth-card">
-      <h2>Choose a password</h2>
-      <p>Welcome. Choose a password for your account. You'll use it with your email to log in.</p>
+      <h2>{{ isReset ? 'Choose a new password' : 'Choose a password' }}</h2>
+      <p v-if="isReset">Choose a new password for your account. You'll use it with your email to log in.</p>
+      <p v-else>Welcome. Choose a password for your account. You'll use it with your email to log in.</p>
       <form @submit.prevent="savePassword">
         <label class="field">
           <span>Password</span>
@@ -190,6 +213,22 @@ function handleBrandSso() {
           {{ loading ? 'Logging in…' : 'Log in' }}
         </button>
       </form>
+
+      <p class="switch-link" style="margin-top: 10px">
+        <a href="#" @click.prevent="forgotMode = !forgotMode; forgotSent = false; forgotError = ''">Forgot password?</a>
+      </p>
+      <div v-if="forgotMode" class="forgot-box">
+        <p v-if="forgotSent" class="status success">
+          If an account exists for {{ email }}, a reset link is on its way. Check your inbox and spam folder.
+        </p>
+        <template v-else>
+          <p class="chart-desc">Enter your email above and we'll send you a link to choose a new password.</p>
+          <p v-if="forgotError" class="status error">{{ forgotError }}</p>
+          <button class="run-btn" type="button" :disabled="forgotLoading" @click="sendReset">
+            {{ forgotLoading ? 'Sending…' : 'Send reset link' }}
+          </button>
+        </template>
+      </div>
 
       <template v-if="!(branding && branding.sso)">
         <div class="sso-divider">or</div>
