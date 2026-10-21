@@ -58,4 +58,11 @@ const entered = computed(() => Math.max(1, Math.floor(Number(count.value) || 0))
 .lp-calc { display: flex; align-items: center; gap: 10px; font-size: 14px; margin-top: 10px; }
 .lp-calc input { width: 90px; }
 .lp-result { margin: 8px 0; font-size: 16px; color: #7c2d12; }
+@media (max-width: 520px) {
+  .lp-table { font-size: 13px; }
+  .lp-table td { padding: 6px 4px; }
+  .lp-calc { flex-wrap: wrap; }
+  .lp-calc input { width: 110px; font-size: 16px; }
+  .lp-result { font-size: 15px; }
+}
 </style>

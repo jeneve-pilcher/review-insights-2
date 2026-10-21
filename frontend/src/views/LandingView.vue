@@ -253,4 +253,32 @@ onMounted(() => {
   max-width: 480px;
   margin: 24px auto 0;
 }
+
+/* Phones and small tablets: the three plans stack one under another, full width, with room around them. */
+@media (max-width: 760px) {
+  .pricing-section {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .pricing-section .pricing-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    width: 100%;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .pricing-section .pricing-grid > * {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  .landing-location-pricing {
+    max-width: 100%;
+    padding: 0 2px;
+  }
+}
 </style>

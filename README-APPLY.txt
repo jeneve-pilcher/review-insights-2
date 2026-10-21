@@ -486,3 +486,9 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
 - backend/features.py COMPANY_PAGE = False: /api/admin/billing answers 404 for everyone, even emails in
   ADMIN_EMAILS, so the operator page shows nothing about companies or contracts. Set it to True (and
   operatorBilling in frontend features.js) to bring it back. Syntax-checked only.
+
+=== Plans on mobile (v30) ===
+- LandingView.vue: under 760px wide the three plan cards stack in one column at full width with 16px
+  side room. LocationPricing.vue: under 520px the price table and estimator get smaller padding and the
+  estimator wraps. PricingCard and the original pricing-grid styles are your own files, which I could not
+  see, so this is written as an override and was not looked at on a phone: tell me what still looks off.
