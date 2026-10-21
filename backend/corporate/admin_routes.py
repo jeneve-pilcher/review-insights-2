@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
+import features
 from auth import CurrentUser, get_current_user
 from corporate import billing_report, pricing
 from corporate.store import get_store
@@ -18,7 +19,7 @@ DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-
 
 
 def require_admin(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    if not billing_report.is_admin(current_user.email):
+    if not features.COMPANY_PAGE or not billing_report.is_admin(current_user.email):
         raise HTTPException(status_code=404, detail="Not found.")     # don't reveal that the page exists
     return current_user
 

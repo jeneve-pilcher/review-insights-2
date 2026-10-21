@@ -477,3 +477,12 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   Reset emails go through Supabase's own sender, so set up your own SMTP there (Authentication ->
   SMTP settings) or the built-in sender will only allow a few per hour.
 - Not tried in a browser or against Supabase.
+
+=== Operator billing panel hidden (v30) ===
+- features.js operatorBilling: false hides the operator Billing panel on the dashboard (it showed for
+  emails in ADMIN_EMAILS). Set it to true to bring it back. The backend page and ADMIN_EMAILS are untouched.
+
+=== Operator billing routes switched off with the Company page (v30) ===
+- backend/features.py COMPANY_PAGE = False: /api/admin/billing answers 404 for everyone, even emails in
+  ADMIN_EMAILS, so the operator page shows nothing about companies or contracts. Set it to True (and
+  operatorBilling in frontend features.js) to bring it back. Syntax-checked only.

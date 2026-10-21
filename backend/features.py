@@ -8,3 +8,6 @@ If you turn either back on, also turn it on in frontend/src/content/features.js,
 (they describe what is sent to outside services)."""
 AI_SUMMARIES = False
 INTERNET_MENTIONS = False
+# The Company page and its operator Billing page (locations per email domain, contracts). Off = the operator
+# billing routes answer 404 for everyone. Keep in step with companyPage / operatorBilling in frontend/src/content/features.js.
+COMPANY_PAGE = False

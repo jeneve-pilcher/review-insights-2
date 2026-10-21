@@ -250,7 +250,7 @@ function handleUnifiedResult({ data }) {
         <button class="mode-tab" :class="{ active: mode === 'company' }" @click="mode = 'company'">🏢 Company (many locations)</button>
       </div>
 
-      <AdminBilling v-if="me.is_admin" />
+      <AdminBilling v-if="FEATURES.operatorBilling && me.is_admin" />
 
       <template v-if="isManager && mode === 'single'">
         <LocationSwitcher v-model="activeLocation" :has-own="Boolean(me.business_location)" @loaded="orgInfo = $event" />
