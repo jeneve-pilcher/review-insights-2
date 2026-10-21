@@ -116,10 +116,10 @@ onMounted(() => {
           period="/ month"
           :highlighted="true"
           :features="[
-            'All 3 charts',
+            'Industry and revenue trends',
             'Wait-Time Revenue Heatmap',
             'Competitor Semantic Share Matrix',
-            'Up to 6 competitors tracked',
+            'Up to 5 competitors tracked',
           ]"
           cta-label="Start Pro"
           @cta="choosePro"
@@ -261,8 +261,8 @@ onMounted(() => {
     padding-right: 16px;
   }
   .pricing-section .pricing-grid {
-    display: grid;
-    grid-template-columns: 1fr;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 16px;
     width: 100%;
     max-width: 480px;
@@ -271,9 +271,9 @@ onMounted(() => {
   }
   .pricing-section .pricing-grid > * {
     width: 100%;
-    max-width: none;
-    min-width: 0;
-    margin: 0;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin: 0 !important;
     box-sizing: border-box;
   }
   .landing-location-pricing {

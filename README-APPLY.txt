@@ -492,3 +492,9 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   side room. LocationPricing.vue: under 520px the price table and estimator get smaller padding and the
   estimator wraps. PricingCard and the original pricing-grid styles are your own files, which I could not
   see, so this is written as an override and was not looked at on a phone: tell me what still looks off.
+
+=== Plan card text and stronger mobile stacking (v30) ===
+- LandingView.vue: Pro's first line now reads "Industry and revenue trends" (was "All 3 charts").
+  "Up to 6 competitors tracked" changed to 5, because the app allows at most 5 competitors.
+- The mobile override (under 760px, one column) now uses !important so the older three-column rule
+  in style.css cannot win.
