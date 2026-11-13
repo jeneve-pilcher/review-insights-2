@@ -89,7 +89,7 @@ async function remove(member) {
       <div class="analysis-form">
         <label class="field" style="min-width: 240px">
           <span>Email</span>
-          <input v-model="email" type="text" placeholder="gm@company.com" @keyup.enter="add" />
+          <input v-model="email" type="text" maxlength="254" placeholder="gm@company.com" @keyup.enter="add" />
         </label>
         <label class="field">
           <span>Role</span>
@@ -113,7 +113,7 @@ async function remove(member) {
         Export your spreadsheet as CSV, then choose the file or paste it below (up to 200 people at a time).
       </p>
       <input type="file" accept=".csv,text/csv" @change="onFile" />
-      <textarea v-model="csv" rows="5" style="width: 100%; margin-top: 8px" placeholder="email,role&#10;ann@company.com,manager&#10;bob@company.com,viewer"></textarea>
+      <textarea v-model="csv" rows="5" maxlength="1000000" style="width: 100%; margin-top: 8px" placeholder="email,role&#10;ann@company.com,manager&#10;bob@company.com,viewer"></textarea>
       <label style="display: block; margin: 6px 0">
         <input v-model="sendInvites" type="checkbox" /> Also email each person an invitation to choose a password
       </label>

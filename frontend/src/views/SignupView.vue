@@ -78,11 +78,11 @@ async function handleSubmit() {
         <form @submit.prevent="handleSubmit">
           <label class="field">
             <span>Company name (optional)</span>
-            <input v-model="companyName" type="text" autocomplete="organization" />
+            <input v-model="companyName" type="text" maxlength="160" autocomplete="organization" />
           </label>
           <label class="field">
             <span>Email</span>
-            <input v-model="email" type="email" autocomplete="email" required />
+            <input v-model="email" type="email" maxlength="254" autocomplete="email" required />
           </label>
           <label class="field">
             <span>Password (min 8 characters)</span>

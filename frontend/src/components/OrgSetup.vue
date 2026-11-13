@@ -41,7 +41,7 @@ async function create() {
       <div class="analysis-form">
         <label class="field" style="flex: 1; min-width: 240px">
           <span>Company name</span>
-          <input v-model="name" type="text" placeholder="e.g. Acme Restaurant Group" @keyup.enter="create" />
+          <input v-model="name" type="text" maxlength="120" placeholder="e.g. Acme Restaurant Group" @keyup.enter="create" />
         </label>
         <button class="run-btn" :disabled="loading" @click="create">
           {{ loading ? 'Creating…' : 'Create company' }}

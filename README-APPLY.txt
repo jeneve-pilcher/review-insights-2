@@ -498,3 +498,53 @@ HOW THE PRODUCT'S REVENUE FIGURE WORKS (for your reference; unchanged)
   "Up to 6 competitors tracked" changed to 5, because the app allows at most 5 competitors.
 - The mobile override (under 760px, one column) now uses !important so the older three-column rule
   in style.css cannot win.
+
+=== Cookie consent banner (v30) ===
+- New: components/CookieBanner.vue, utils/consent.js, content/trackers.js. App.vue now also renders the
+  banner (it was a 5-line file; if yours has changed, add the import and <CookieBanner /> by hand instead
+  of overwriting: back up first with cp frontend/src/App.vue ~/App.backup.vue).
+- Behaviour: first visit shows Reject and Accept (equal weight). Nothing optional loads before Accept.
+  Reject never loads anything. The choice is remembered for a year (localStorage, plus a first-party cookie
+  as backup) and a "Cookie settings" link in the home-page footer reopens the banner. Switching Accept ->
+  Reject deletes the _ga/_gid/_fbp cookies and reloads the page so the scripts are gone.
+- Today the app loads NO analytics or third-party scripts, so the banner gates nothing yet. To add Google
+  Analytics or the Meta Pixel, set VITE_GA_MEASUREMENT_ID and/or VITE_META_PIXEL_ID on the frontend build
+  (Render: frontend service -> Environment, then redeploy). They load only after Accept. Do not paste a
+  tracker snippet into index.html: that would load it before consent.
+- Single-page note: GA and the Pixel record the first page load only; page changes inside the app are not
+  reported unless you add route tracking.
+- legal/privacy.js: new "Cookies and similar technologies" section, the summary line changed to say no
+  analytics or advertising cookies load unless accepted, and PRIVACY_DATE set to October 27, 2026. Still a
+  draft for a lawyer. If you turn a tracker on, the policy must also name it and what it receives.
+- Logic tested in Node with a stand-in browser (12 checks passed). Not seen in a browser.
+
+=== Input sanitizing (v30) ===
+Backend
+- New backend/sanitize.py. Every request body now inherits SafeModel, which removes control characters,
+  zero-width and "bidirectional override" characters, normalises Unicode, collapses whitespace in single-line
+  fields (message, csv_text, text, note, notes keep their line breaks) and caps any field with no limit of
+  its own at 2000 characters. Applied to: schemas.py, corporate/schemas.py, credits/routes.py, replies.py and
+  the operator contract form.
+- Length limits added where there were none (business location 300, links 500, emails 254, names 120-160,
+  CSV text 1,000,000). Ids in the address (/locations/{id} and similar) must be letters, digits, - or _.
+  Query values are checked: view, alert status, scope and the branding email.
+- The operator billing CSV export now neutralises cells that start with = + - @ (spreadsheet formula injection).
+- The cron secret is compared in constant time.
+- Already in place and unchanged: review-site links are rebuilt by each platform's own checker (Yelp, OpenTable,
+  DoorDash, Uber Eats, Grubhub, Zocdoc); emails by the company routes' email check; brand name/logo/colour
+  checks; the contact form strips anything that could reach an email header. The database is only ever called
+  with parameters (no SQL is built from text).
+- Deliberately NOT done: text is not HTML-escaped when saved. Vue escapes everything it prints and the app uses
+  no v-html, so escaping again on the way in would show &amp; to people. If you ever add v-html, sanitize there.
+Frontend
+- New utils/sanitize.js. Links from outside data (reviews' page links, web mentions) are only used if they are
+  plain http(s) addresses, so a javascript: link can't be clicked. Text boxes have maxlength matching the server.
+- Checked with real pydantic models (limits, cleaning, nested competitors, CSV text) and a Node test of the link
+  checker. The route changes (ids, query values) could only be syntax-checked: FastAPI isn't installable here.
+
+== Password reset link lands on "not found" / home page ==
+- frontend/src/App.vue: a reset link that arrives at the site root (#...type=recovery) is sent to /login?reset=1
+  with its tokens kept, so "Choose a new password" shows. An expired/used link goes to /login?expired=1.
+- frontend/src/views/LoginView.vue: shows "That reset link has expired or was already used" and opens the reset box.
+- Back up your App.vue first (cp frontend/src/App.vue ~/App.backup.vue). Still add
+  https://reviewinsights.onrender.com/** to Supabase > Authentication > URL Configuration > Redirect URLs.

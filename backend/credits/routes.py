@@ -12,6 +12,7 @@ import config
 from analysis import delivery_clients, opentable_client, outscraper_client, yelp_client
 from auth import CurrentUser, get_current_user
 from corporate.store import DuplicateRef, get_store
+from sanitize import SafeModel
 from supabase_client import get_profile, get_supabase_admin
 from credits import rates, wallet
 from setup_check import SETUP_HINT
@@ -95,7 +96,7 @@ def _reconcile(ctx: dict, current_user: CurrentUser) -> None:
 
 
 @router.get("")
-def get_credits(scope: str = "user", current_user: CurrentUser = Depends(get_current_user)):
+def get_credits(scope: Literal["user", "org"] = "user", current_user: CurrentUser = Depends(get_current_user)):
     ctx = _resolve(current_user, scope)
     store = get_store()
     _reconcile(ctx, current_user)
@@ -129,16 +130,16 @@ def get_credits(scope: str = "user", current_user: CurrentUser = Depends(get_cur
     }
 
 
-class CheckoutRequest(BaseModel):
+class CheckoutRequest(SafeModel):
     pack_id: str = Field(..., min_length=1, max_length=20)
     scope: Literal["user", "org"] = "user"
 
 
-class ConfirmRequest(BaseModel):
+class ConfirmRequest(SafeModel):
     session_id: str = Field(..., min_length=1, max_length=200)
 
 
-class LimitRequest(BaseModel):
+class LimitRequest(SafeModel):
     scope: Literal["user", "org"] = "user"
     monthly_limit_usd: Optional[float] = Field(None, gt=0, le=1_000_000)   # None = no limit
 

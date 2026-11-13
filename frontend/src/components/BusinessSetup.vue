@@ -73,6 +73,7 @@ async function handleSubmit() {
         <input
           v-model="location"
           type="text"
+          maxlength="300"
           placeholder="e.g. Joe's Pizza, Brooklyn NY - or paste a Google Maps link"
           @keyup.enter="handleSubmit"
         />

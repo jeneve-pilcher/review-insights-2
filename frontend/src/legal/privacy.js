@@ -6,7 +6,7 @@
 //
 // If what the app collects or shares changes (a new outside service, a new kind of data), change this text and PRIVACY_DATE.
 
-export const PRIVACY_DATE = 'October 13, 2026'
+export const PRIVACY_DATE = 'October 27, 2026'
 
 const p = (text) => ({ type: 'p', text })
 const list = (items) => ({ type: 'list', items })
@@ -18,7 +18,7 @@ export const PRIVACY_SECTIONS = [
     blocks: [
       list([
         'We collect what you give us (your email, your business and review-page links) and the public reviews of the business you ask us to look at.',
-        'We do not sell personal information, and we do not run advertising trackers.',
+        'We do not sell personal information. We use no analytics or advertising cookies unless you accept them in the cookie banner.',
         'A few outside services do part of the work for us. Section 4 lists each one and what it receives.',
         'Healthcare accounts: reply drafting is turned off, so no review text is sent to an AI model.',
         'You can delete your account yourself from your dashboard.',
@@ -45,6 +45,14 @@ export const PRIVACY_SECTIONS = [
       ]),
       p('Payment details are collected and stored by Stripe. We never see or keep your card number. We keep Stripe\'s customer and subscription identifiers so we can show your plan and open the billing portal.'),
       p('Technical information: your browser keeps a sign-in session (and a few settings) so you stay logged in. Our servers handle the requests you make, and may log things like errors and timing to keep the service running.'),
+    ],
+  },
+  {
+    id: 'cookies',
+    title: 'Cookies and similar technologies',
+    blocks: [
+      p('Essential storage: your browser keeps a sign-in session and a few settings (for example your chosen view and your cookie choice) so the service works. These do not need your consent.'),
+      p('Optional cookies: analytics and advertising tools (such as Google Analytics or the Meta Pixel) are only loaded after you click Accept in the cookie banner. If you click Reject, they are never loaded. We remember your choice for a year. You can change it any time with "Cookie settings" at the bottom of the home page.'),
     ],
   },
   {

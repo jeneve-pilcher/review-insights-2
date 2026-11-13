@@ -1,50 +1,52 @@
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from sanitize import SafeModel
 
 
-class SetBusinessLocationRequest(BaseModel):
-    business_location: str = Field(..., min_length=1)
+class SetBusinessLocationRequest(SafeModel):
+    business_location: str = Field(..., min_length=1, max_length=300)
 
 
-class AcceptTermsRequest(BaseModel):
+class AcceptTermsRequest(SafeModel):
     # Which version of the Terms of Service the person agreed to (e.g. "2026-10-06").
     version: str = Field(..., min_length=1, max_length=40)
 
 
-class SetPlatformUrlRequest(BaseModel):
+class SetPlatformUrlRequest(SafeModel):
     platform: Literal["opentable", "doordash", "ubereats", "grubhub"]
-    url: str = Field(..., min_length=1)
+    url: str = Field(..., min_length=1, max_length=500)
 
 
-class SetIndustryRequest(BaseModel):
+class SetIndustryRequest(SafeModel):
     industry: str = Field(..., min_length=1, max_length=40)
 
 
-class SetLinksRequest(BaseModel):
+class SetLinksRequest(SafeModel):
     """The review pages an account connects, all in one save. Send only the ones being added."""
-    yelp_url: Optional[str] = None
-    opentable_url: Optional[str] = None
-    doordash_url: Optional[str] = None
-    ubereats_url: Optional[str] = None
-    grubhub_url: Optional[str] = None
+    yelp_url: Optional[str] = Field(None, max_length=500)
+    opentable_url: Optional[str] = Field(None, max_length=500)
+    doordash_url: Optional[str] = Field(None, max_length=500)
+    ubereats_url: Optional[str] = Field(None, max_length=500)
+    grubhub_url: Optional[str] = Field(None, max_length=500)
 
 
-class SetYelpUrlRequest(BaseModel):
-    yelp_url: str = Field(..., min_length=1)
+class SetYelpUrlRequest(SafeModel):
+    yelp_url: str = Field(..., min_length=1, max_length=500)
 
 
-class BusinessInput(BaseModel):
-    name: str
-    search_query: str
+class BusinessInput(SafeModel):
+    name: str = Field(..., max_length=160)
+    search_query: str = Field(..., max_length=300)
 
 
-class CompetitorsRequest(BaseModel):
+class CompetitorsRequest(SafeModel):
     months: int = Field(6, ge=1, le=60)
     competitors: List[BusinessInput] = Field(default_factory=list, max_length=5)
 
 
-class UnifiedAnalysisRequest(BaseModel):
+class UnifiedAnalysisRequest(SafeModel):
     # How far back to pull reviews. Smaller = faster and cheaper.
     months: int = Field(6, ge=1, le=60)
     # False when the page re-reads the same reviews for another view (combined / Google / Yelp): not a new press.
@@ -65,8 +67,8 @@ class UnifiedAnalysisRequest(BaseModel):
     mention_pages: int = Field(2, ge=1, le=5)
 
 
-class EnterpriseContactRequest(BaseModel):
-    name: str
-    email: str
-    company_name: Optional[str] = None
-    message: str
+class EnterpriseContactRequest(SafeModel):
+    name: str = Field(..., max_length=120)
+    email: str = Field(..., max_length=254)
+    company_name: Optional[str] = Field(None, max_length=160)
+    message: str = Field(..., max_length=4000)

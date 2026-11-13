@@ -1,4 +1,5 @@
 <script setup>
+import { safeHttpUrl } from '../utils/sanitize'
 import { computed, reactive, ref, watch } from 'vue'
 import { repliesApi } from '../api'
 import { CATEGORY_LABELS, toneClass, toneLabel } from '../utils/mentions'
@@ -253,14 +254,14 @@ const stars = (n) => (n == null ? '' : '★'.repeat(n) + '☆'.repeat(5 - n))
 
         <!-- web mentions and Uber Eats (no stars): read-only -->
         <div v-if="item.rating == null || repliesOff" class="rr-actions">
-          <a v-if="item.url" class="oc-btn rr-link" :href="item.url" target="_blank" rel="noopener noreferrer">Open page ↗</a>
+          <a v-if="safeHttpUrl(item.url)" class="oc-btn rr-link" :href="safeHttpUrl(item.url)" target="_blank" rel="noopener noreferrer">Open page ↗</a>
           <span v-if="repliesOff" class="oc-note" style="margin: 0">Replies are off for healthcare accounts.</span>
           <span v-else class="oc-note" style="margin: 0">No stars and no reply from here: this isn't a star review on a platform you can answer from this app.</span>
         </div>
 
         <!-- editor -->
         <div v-else-if="editors[item.key]?.open" class="rr-editor">
-          <textarea v-model="editors[item.key].text" rows="4" class="rr-textarea"></textarea>
+          <textarea v-model="editors[item.key].text" rows="4" class="rr-textarea" maxlength="1500"></textarea>
           <div class="oc-note">
             {{ wordCount(editors[item.key].text) }} words
             <span v-if="editors[item.key].engine"> · {{ editors[item.key].engine === 'ai' ? 'AI draft' : 'template draft' }}</span>
@@ -275,7 +276,7 @@ const stars = (n) => (n == null ? '' : '★'.repeat(n) + '☆'.repeat(5 - n))
             </select>
             <button class="oc-btn" :disabled="editors[item.key].busy" @click="draft(item)">Redraft</button>
             <button class="oc-btn" @click="copy(item)">Copy</button>
-            <a v-if="pageUrl(item)" class="oc-btn rr-link" :href="pageUrl(item)" target="_blank" rel="noopener noreferrer">
+            <a v-if="safeHttpUrl(pageUrl(item))" class="oc-btn rr-link" :href="safeHttpUrl(pageUrl(item))" target="_blank" rel="noopener noreferrer">
               Open {{ platformLabel(item.source) }} ↗
             </a>
             <button class="oc-btn" :disabled="editors[item.key].busy" @click="save(item, 'draft')">Save draft</button>

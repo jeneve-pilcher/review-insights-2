@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
@@ -146,7 +146,7 @@ def set_my_industry(req: SetIndustryRequest, current_user: CurrentUser = Depends
 
 
 @app.get("/api/branding")
-def branding_for_email(request: Request, email: str = ""):
+def branding_for_email(request: Request, email: str = Query("", max_length=254)):
     """Public, used by the login page BEFORE sign-in: the brand details for a work email's domain, if that company has
     white-label branding. Rate limited, and it returns nothing but brand details."""
     ip = request.client.host if request.client else "unknown"

@@ -11,6 +11,7 @@ import RolesSection from '../components/RolesSection.vue'
 import LocationPricing from '../components/LocationPricing.vue'
 import StatsStrip from '../components/StatsStrip.vue'
 import { readQuery } from '../utils/startFlow'
+import { openCookieSettings } from '../utils/consent'
 
 const route = useRoute()
 const router = useRouter()
@@ -149,7 +150,8 @@ onMounted(() => {
       <p class="landing-fineprint">
         Review Insights ·
         <a href="#terms" @click.prevent="openLegal('terms')">Terms of Service</a> ·
-        <a href="#privacy" @click.prevent="openLegal('privacy')">Privacy Policy</a>
+        <a href="#privacy" @click.prevent="openLegal('privacy')">Privacy Policy</a> ·
+        <a href="#" @click.prevent="openCookieSettings()">Cookie settings</a>
       </p>
     </footer>
   </div>

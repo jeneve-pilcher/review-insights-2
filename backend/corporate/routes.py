@@ -1,12 +1,15 @@
 import csv
+import hmac
 import io
 import os
 import re
+from typing import Literal, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 import config
+from sanitize import ID_PATTERN, SafeId
 from analysis import pipeline
 import features
 from analysis.mentions import default_terms, mention_target
@@ -300,7 +303,7 @@ def _get_target_member(member: dict, member_id: str) -> dict:
 
 
 @router.patch("/members/{member_id}")
-def update_member(member_id: str, req: MemberUpdate, member: dict = Depends(get_member)):
+def update_member(member_id: SafeId, req: MemberUpdate, member: dict = Depends(get_member)):
     _require(member, "manage_members")
     target = _get_target_member(member, member_id)
     if req.role == "admin":
@@ -311,7 +314,7 @@ def update_member(member_id: str, req: MemberUpdate, member: dict = Depends(get_
 
 
 @router.delete("/members/{member_id}")
-def remove_member(member_id: str, member: dict = Depends(get_member)):
+def remove_member(member_id: SafeId, member: dict = Depends(get_member)):
     _require(member, "manage_members")
     target = _get_target_member(member, member_id)
     get_store().remove_member(member_id)
@@ -455,7 +458,7 @@ def import_locations(req: ImportRequest, member: dict = Depends(get_member)):
 
 
 @router.patch("/locations/{location_id}")
-def update_location(location_id: str, req: LocationUpdate, member: dict = Depends(get_member)):
+def update_location(location_id: SafeId, req: LocationUpdate, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
     loc = _get_location(member, location_id)
     data = _validate_location(_fields(req), member)
@@ -468,7 +471,7 @@ def update_location(location_id: str, req: LocationUpdate, member: dict = Depend
 
 
 @router.delete("/locations/{location_id}")
-def delete_location(location_id: str, member: dict = Depends(get_member)):
+def delete_location(location_id: SafeId, member: dict = Depends(get_member)):
     _require(member, "manage_locations")
     loc = _get_location(member, location_id)
     get_store().delete_location(location_id)
@@ -478,7 +481,7 @@ def delete_location(location_id: str, member: dict = Depends(get_member)):
 
 
 @router.post("/locations/{location_id}/run")
-def run_location(location_id: str, member: dict = Depends(get_member)):
+def run_location(location_id: SafeId, member: dict = Depends(get_member)):
     loc = _get_location(member, location_id, "run_location")
     res = monitor.run_location(get_store(), member["org"], loc, kind="manual")
     if res["status"] == "skipped":
@@ -491,7 +494,7 @@ def run_location(location_id: str, member: dict = Depends(get_member)):
 
 
 @router.get("/locations/{location_id}/providers")
-def location_providers(location_id: str, member: dict = Depends(get_member)):
+def location_providers(location_id: SafeId, member: dict = Depends(get_member)):
     """Provider-level numbers for one location, filtered by role: owners and admins see every provider with names, a
     manager sees their own location's providers, a viewer sees practice-level totals only."""
     loc = _get_location(member, location_id)               # a manager can only reach their own location
@@ -501,14 +504,14 @@ def location_providers(location_id: str, member: dict = Depends(get_member)):
 
 
 @router.get("/locations/{location_id}/history")
-def location_history(location_id: str, member: dict = Depends(get_member)):
+def location_history(location_id: SafeId, member: dict = Depends(get_member)):
     _get_location(member, location_id)
     rows = get_store().snapshots(location_id, 30)
     return [{k: r.get(k) for k in SNAPSHOT_FIELDS} for r in reversed(rows)]
 
 
 @router.get("/locations/{location_id}/analysis")
-def location_analysis(location_id: str, months: int = 6, view: str = "combined", mentions: bool = False,
+def location_analysis(location_id: SafeId, months: int = 6, view: Literal["combined", "google", "yelp", "opentable", "doordash", "grubhub"] = "combined", mentions: bool = False,
                       member: dict = Depends(get_member)):
     """The full single-business dashboard payload for one location (every panel)."""
     loc = _get_location(member, location_id)
@@ -579,7 +582,7 @@ def benchmarks(group_by: str = "all", member: dict = Depends(get_member)):
 
 # ------------------------------------------------------------ alerts/tasks
 @router.get("/alerts")
-def list_alerts(status: str = None, location_id: str = None, member: dict = Depends(get_member)):
+def list_alerts(status: Optional[Literal["open", "acknowledged", "resolved"]] = None, location_id: Optional[str] = Query(None, pattern=ID_PATTERN), member: dict = Depends(get_member)):
     store = get_store()
     names = {l["id"]: l for l in store.list_locations(member["org_id"])}
     pack = industries.get_pack(member["org"].get("industry"))
@@ -594,7 +597,7 @@ def list_alerts(status: str = None, location_id: str = None, member: dict = Depe
 
 
 @router.patch("/alerts/{alert_id}")
-def update_alert(alert_id: str, req: AlertUpdate, member: dict = Depends(get_member)):
+def update_alert(alert_id: SafeId, req: AlertUpdate, member: dict = Depends(get_member)):
     store = get_store()
     alert = store.get_alert(alert_id)
     if not alert or alert["org_id"] != member["org_id"]:
@@ -623,7 +626,7 @@ def audit_log(member: dict = Depends(get_member)):
 def run_due(x_cron_secret: str = Header(None)):
     """For hosts that run cron jobs (e.g. Render): POST here with the X-Cron-Secret header."""
     secret = os.environ.get("CRON_SECRET")
-    if not secret or x_cron_secret != secret:
+    if not secret or not x_cron_secret or not hmac.compare_digest(x_cron_secret.encode(), secret.encode()):
         raise HTTPException(status_code=404, detail="Not found.")      # don't reveal the route exists
     results = monitor.run_due(get_store())
     return {"ran": len(results), "ok": sum(1 for r in results if r["status"] == "ok"),

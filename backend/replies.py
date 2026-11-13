@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Literal, Optional
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from analysis.pii import redact_pii
@@ -20,6 +20,7 @@ from corporate.permissions import can_act_on_location, can_see_location
 from corporate.store import get_store
 from analysis.industries import get_pack
 from credits import rates as credit_rates, wallet
+from sanitize import SafeModel
 from supabase_client import get_profile
 
 router = APIRouter(prefix="/api/replies", tags=["replies"])
@@ -224,27 +225,27 @@ def _short_name(business: str) -> str:
 
 
 # ------------------------------------------------------------------ routes
-class DraftRequest(BaseModel):
-    location_id: Optional[str] = None
-    review_key: str = Field(..., min_length=1)
-    source: str = "google"
+class DraftRequest(SafeModel):
+    location_id: Optional[str] = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    review_key: str = Field(..., min_length=1, max_length=200)
+    source: str = Field("google", max_length=40)
     rating: int = Field(..., ge=1, le=5)
     text: str = Field("", max_length=2000)
     tone: Literal["friendly", "professional", "apologetic"] = "friendly"
 
 
-class SaveReplyRequest(BaseModel):
-    location_id: Optional[str] = None
-    review_key: str = Field(..., min_length=1)
-    source: str = "google"
+class SaveReplyRequest(SafeModel):
+    location_id: Optional[str] = Field(None, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
+    review_key: str = Field(..., min_length=1, max_length=200)
+    source: str = Field("google", max_length=40)
     rating: int = Field(..., ge=1, le=5)
-    review_date: Optional[str] = None
+    review_date: Optional[str] = Field(None, max_length=40)
     text: str = Field(..., min_length=1, max_length=1500)
     status: Literal["draft", "sent"] = "draft"
 
 
 @router.get("")
-def list_replies(location_id: str = None, current_user: CurrentUser = Depends(get_current_user)):
+def list_replies(location_id: Optional[str] = Query(None, pattern=r"^[A-Za-z0-9_-]{1,64}$"), current_user: CurrentUser = Depends(get_current_user)):
     ctx = _scope(current_user, location_id)
     return {"replies": get_store().get_replies(ctx["scope"]), "can_save": ctx["can_save"],
             "engine": "ai" if os.environ.get("ANTHROPIC_API_KEY") else "template"}

@@ -111,11 +111,11 @@ async function save(alert, nextStatus) {
       <div v-if="info.can.update_alert" class="analysis-form">
         <label class="field" style="min-width: 200px">
           <span>Assigned to (team email)</span>
-          <input v-model="edits[a.id].assigned_to" type="text" placeholder="gm@company.com" />
+          <input v-model="edits[a.id].assigned_to" type="text" maxlength="254" placeholder="gm@company.com" />
         </label>
         <label class="field" style="flex: 1; min-width: 220px">
           <span>Note</span>
-          <input v-model="edits[a.id].note" type="text" placeholder="What was done?" />
+          <input v-model="edits[a.id].note" type="text" maxlength="1000" placeholder="What was done?" />
         </label>
       </div>
       <div v-if="info.can.update_alert" style="margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap">

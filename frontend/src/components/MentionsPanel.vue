@@ -1,4 +1,5 @@
 <script setup>
+import { safeHttpUrl } from '../utils/sanitize'
 import { computed, ref } from 'vue'
 import { CATEGORY_LABELS, SEARCH_PRICE_USD, formatCost, toneClass, toneLabel } from '../utils/mentions'
 
@@ -77,7 +78,8 @@ const cost = computed(() => formatCost((props.result?.searches ?? 0) * SEARCH_PR
             <span class="oc-note" style="margin: 0">{{ m.date ? String(m.date).slice(0, 10) : 'no date' }}</span>
             <span class="mn-tone" :class="toneClass(m.sentiment)">{{ toneLabel(m.sentiment) }}</span>
           </div>
-          <a :href="m.url" target="_blank" rel="noopener noreferrer" class="mn-title">{{ m.title || m.url }}</a>
+          <a v-if="safeHttpUrl(m.url)" :href="safeHttpUrl(m.url)" target="_blank" rel="noopener noreferrer" class="mn-title">{{ m.title || m.url }}</a>
+          <span v-else class="mn-title">{{ m.title }}</span>
           <p v-if="m.snippet" class="mn-snippet">{{ m.snippet }}</p>
         </div>
 

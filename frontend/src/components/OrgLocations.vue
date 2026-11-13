@@ -149,24 +149,24 @@ async function importCsv() {
     <section v-if="info.can.manage_locations" class="oc-card" style="margin-bottom: 18px">
       <h4 style="margin-top: 0">{{ editingId ? 'Edit location' : 'Add a location' }}</h4>
       <div class="analysis-form">
-        <label class="field"><span>Name</span><input v-model="form.name" type="text" placeholder="Downtown" /></label>
+        <label class="field"><span>Name</span><input v-model="form.name" type="text" maxlength="160" placeholder="Downtown" /></label>
         <label class="field" style="min-width: 260px">
           <span>Google search (name + address)</span>
-          <input v-model="form.google_query" type="text" placeholder="Acme Grill, 123 Main St, Austin TX" />
+          <input v-model="form.google_query" type="text" maxlength="300" placeholder="Acme Grill, 123 Main St, Austin TX" />
         </label>
-        <label class="field"><span>Brand</span><input v-model="form.brand" type="text" /></label>
-        <label class="field"><span>Region</span><input v-model="form.region" type="text" /></label>
-        <label class="field"><span>Yelp page (optional)</span><input v-model="form.yelp_url" type="text" placeholder="https://www.yelp.com/biz/..." /></label>
-        <label class="field"><span>OpenTable page (optional)</span><input v-model="form.opentable_url" type="text" placeholder="https://www.opentable.com/r/..." /></label>
-        <label class="field"><span>DoorDash page (optional)</span><input v-model="form.doordash_url" type="text" placeholder="https://www.doordash.com/store/...-123456/" /></label>
-        <label class="field"><span>Uber Eats page (optional)</span><input v-model="form.ubereats_url" type="text" placeholder="https://www.ubereats.com/store/.../abc123" /></label>
-        <label class="field"><span>Grubhub page (optional)</span><input v-model="form.grubhub_url" type="text" placeholder="https://www.grubhub.com/restaurant/.../123456/" /></label>
+        <label class="field"><span>Brand</span><input v-model="form.brand" type="text" maxlength="120" /></label>
+        <label class="field"><span>Region</span><input v-model="form.region" type="text" maxlength="120" /></label>
+        <label class="field"><span>Yelp page (optional)</span><input v-model="form.yelp_url" type="text" maxlength="500" placeholder="https://www.yelp.com/biz/..." /></label>
+        <label class="field"><span>OpenTable page (optional)</span><input v-model="form.opentable_url" type="text" maxlength="500" placeholder="https://www.opentable.com/r/..." /></label>
+        <label class="field"><span>DoorDash page (optional)</span><input v-model="form.doordash_url" type="text" maxlength="500" placeholder="https://www.doordash.com/store/...-123456/" /></label>
+        <label class="field"><span>Uber Eats page (optional)</span><input v-model="form.ubereats_url" type="text" maxlength="500" placeholder="https://www.ubereats.com/store/.../abc123" /></label>
+        <label class="field"><span>Grubhub page (optional)</span><input v-model="form.grubhub_url" type="text" maxlength="500" placeholder="https://www.grubhub.com/restaurant/.../123456/" /></label>
         <label v-if="providersOn" class="field" style="grid-column: 1 / -1">
           <span>Zocdoc doctor pages (one link per line, up to 10)</span>
           <textarea v-model="form.provider_links_text" rows="3" placeholder="https://www.zocdoc.com/doctor/jane-doe-md-12345"></textarea>
           <small class="oc-note">Provider-level numbers for these doctors appear on the location's page. Each refresh is billed per result, so scheduled checks refresh them at most weekly.</small>
         </label>
-        <label class="field"><span>Manager email</span><input v-model="form.manager_email" type="text" placeholder="gm@company.com" /></label>
+        <label class="field"><span>Manager email</span><input v-model="form.manager_email" type="text" maxlength="254" placeholder="gm@company.com" /></label>
         <button class="oc-btn" :disabled="saving" @click="submit">{{ editingId ? 'Save changes' : 'Add location' }}</button>
         <button v-if="editingId" class="oc-btn" @click="cancelEdit">Cancel</button>
       </div>
@@ -183,7 +183,7 @@ async function importCsv() {
           Export your spreadsheet as CSV, then choose the file or paste it below.
         </p>
         <input type="file" accept=".csv,text/csv" @change="onFile" />
-        <textarea v-model="csv" rows="5" style="width: 100%; margin-top: 8px" placeholder="name,brand,region,google_query,manager_email"></textarea>
+        <textarea v-model="csv" rows="5" maxlength="1000000" style="width: 100%; margin-top: 8px" placeholder="name,brand,region,google_query,manager_email"></textarea>
         <p v-if="csv" class="oc-note">
           Found {{ preview.rows }} data row{{ preview.rows === 1 ? '' : 's' }} · columns: {{ preview.headers.join(', ') || 'none' }}
         </p>

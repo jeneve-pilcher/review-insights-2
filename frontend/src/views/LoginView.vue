@@ -30,6 +30,7 @@ const forgotMode = ref(false)
 const forgotSent = ref(false)
 const forgotError = ref('')
 const forgotLoading = ref(false)
+const linkExpired = computed(() => route.query.expired !== undefined)
 
 async function sendReset() {
   forgotError.value = ''
@@ -71,6 +72,7 @@ const brandLogo = computed(() => safeLogo(branding.value))
 const brandName = computed(() => (branding.value ? brandTitle(branding.value) : ''))
 
 onMounted(() => {
+  if (linkExpired.value) forgotMode.value = true
   checkInvite()
   supabase.auth.onAuthStateChange((event) => {
     if (wantsNewPassword() && (event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY')) settingPassword.value = true
@@ -200,7 +202,7 @@ function handleBrandSso() {
       <form @submit.prevent="handleSubmit">
         <label class="field">
           <span>Email</span>
-          <input v-model="email" type="email" autocomplete="email" required />
+          <input v-model="email" type="email" maxlength="254" autocomplete="email" required />
         </label>
         <label class="field">
           <span>Password</span>
@@ -218,6 +220,9 @@ function handleBrandSso() {
         <a href="#" @click.prevent="forgotMode = !forgotMode; forgotSent = false; forgotError = ''">Forgot password?</a>
       </p>
       <div v-if="forgotMode" class="forgot-box">
+        <p v-if="linkExpired && !forgotSent" class="status error">
+          That reset link has expired or was already used. Enter your email above and request a new one.
+        </p>
         <p v-if="forgotSent" class="status success">
           If an account exists for {{ email }}, a reset link is on its way. Check your inbox and spam folder.
         </p>

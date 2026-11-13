@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 import features
 from auth import CurrentUser, get_current_user
+from sanitize import SafeModel, csv_safe
 from corporate import billing_report, pricing
 from corporate.store import get_store
 
@@ -24,7 +25,7 @@ def require_admin(current_user: CurrentUser = Depends(get_current_user)) -> Curr
     return current_user
 
 
-class ContractIn(BaseModel):
+class ContractIn(SafeModel):
     company_name: Optional[str] = Field(None, max_length=120)
     minimum_locations: int = Field(0, ge=0, le=100000)
     price_tiers: Optional[str] = Field(None, max_length=300)
@@ -73,8 +74,8 @@ def export_csv(_: CurrentUser = Depends(require_admin)):
     w.writerow(["customer", "domain", "accounts", "locations_used", "minimum_locations", "locations_billed",
                 "monthly_total_usd", "average_per_location_usd", "custom_prices", "contract_ends"])
     for l in data["lines"]:
-        w.writerow([l["label"], l["domain"] or "", l["accounts"], l["locations_used"], l["minimum_locations"],
+        w.writerow([csv_safe(c) for c in [l["label"], l["domain"] or "", l["accounts"], l["locations_used"], l["minimum_locations"],
                     l["locations_billed"], l["monthly_total"], l["average_per_location"], "yes" if l["custom_prices"] else "no",
-                    (l["contract"] or {}).get("ends_on") or ""])
+                    (l["contract"] or {}).get("ends_on") or ""]])
     return Response(out.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": 'attachment; filename="location-billing.csv"'})

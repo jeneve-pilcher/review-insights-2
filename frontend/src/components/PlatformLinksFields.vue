@@ -35,7 +35,7 @@ const visibleMore = computed(() => split.value.more.filter((p) => showMore.value
 
     <label v-for="p in [...split.primary, ...visibleMore]" :key="p.id" class="field" style="display: block; margin: 10px 0">
       <span>{{ p.label }} page (optional)</span>
-      <input v-model="local[p.column]" type="text" :placeholder="p.placeholder" style="width: 100%" />
+      <input v-model="local[p.column]" type="text" maxlength="500" :placeholder="p.placeholder" style="width: 100%" />
       <small class="oc-note" style="display: block">{{ p.help }}</small>
     </label>
 

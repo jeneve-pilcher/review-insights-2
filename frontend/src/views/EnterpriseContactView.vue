@@ -41,19 +41,19 @@ async function handleSubmit() {
         <form @submit.prevent="handleSubmit">
           <label class="field">
             <span>Name</span>
-            <input v-model="name" type="text" required />
+            <input v-model="name" type="text" maxlength="120" required />
           </label>
           <label class="field">
             <span>Work email</span>
-            <input v-model="email" type="email" required />
+            <input v-model="email" type="email" maxlength="254" required />
           </label>
           <label class="field">
             <span>Company</span>
-            <input v-model="companyName" type="text" />
+            <input v-model="companyName" type="text" maxlength="160" />
           </label>
           <label class="field">
             <span>What are you looking to do?</span>
-            <textarea v-model="message" rows="4" required></textarea>
+            <textarea v-model="message" rows="4" maxlength="4000" required></textarea>
           </label>
 
           <p v-if="error" class="status error">{{ error }}</p>
