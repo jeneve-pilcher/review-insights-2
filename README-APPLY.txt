@@ -548,3 +548,5 @@ Frontend
 - frontend/src/views/LoginView.vue: shows "That reset link has expired or was already used" and opens the reset box.
 - Back up your App.vue first (cp frontend/src/App.vue ~/App.backup.vue). Still add
   https://reviewinsights.onrender.com/** to Supabase > Authentication > URL Configuration > Redirect URLs.
+- (update) App.vue now reads the reset hash at load time and also listens for Supabase's PASSWORD_RECOVERY event,
+  so it works even when the home page redirects or tidies the address first.
