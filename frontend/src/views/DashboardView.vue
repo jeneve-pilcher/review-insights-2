@@ -25,6 +25,7 @@ import ToneVsStarsChart from '../components/ToneVsStarsChart.vue'
 import YourPagesModal from '../components/YourPagesModal.vue'
 import { analyzeCompetitors, createCheckoutSession, createPortalSession, deleteAccount, fetchIndustries, fetchMe } from '../api'
 import { normalizeCompetitors } from '../utils/competitors'
+import { forgetCompetitors, loadCompetitors, saveCompetitors } from '../utils/savedCompetitors'
 import { applyBranding, brandTitle, forgetBrand, rememberBrand, safeLogo } from '../utils/theme'
 import { billingLine } from '../utils/credits'
 import { REQUIRE_ACCEPTANCE, TERMS_VERSION, needsAcceptance } from '../legal/terms'
@@ -68,6 +69,18 @@ const trendsResult = ref(null)
 const signalsResult = ref(null)
 const competitorsResult = ref(null)
 const competitorList = ref([])
+// Competitors stay saved in this browser (per account) until the person removes them.
+let competitorsUserId = ''
+let competitorsLoaded = false
+watch(competitorList, (rows) => { if (competitorsLoaded) saveCompetitors(competitorsUserId, rows) }, { deep: true })
+async function restoreCompetitors() {
+  try {
+    const { data } = await supabase.auth.getSession()
+    competitorsUserId = data?.session?.user?.id || ''
+    if (competitorsUserId && !competitorList.value.length) competitorList.value = loadCompetitors(competitorsUserId)
+  } catch { /* not signed in yet: nothing to restore */ }
+  competitorsLoaded = true
+}
 const comparing = ref(false)
 const compareError = ref('')
 // "Compare" re-runs only the competitor matrix, not every panel.
@@ -106,6 +119,7 @@ async function loadMe() {
 onMounted(async () => {
   fetchIndustries().then((d) => { industries.value = d.industries }).catch(() => {})
   await loadMe()
+  await restoreCompetitors()
   // Someone invited to a company who isn't on a paid plan lands in the company view.
   if (FEATURES.companyPage && me.value?.org_role && me.value.org_role !== 'manager' && !isPaid()) mode.value = 'company'
 })
@@ -190,6 +204,7 @@ async function handleDeleteAccount() {
 
   try {
     await deleteAccount()
+    forgetCompetitors(competitorsUserId)
     await supabase.auth.signOut()
     router.push('/')
   } catch (err) {

@@ -550,3 +550,8 @@ Frontend
   https://reviewinsights.onrender.com/** to Supabase > Authentication > URL Configuration > Redirect URLs.
 - (update) App.vue now reads the reset hash at load time and also listens for Supabase's PASSWORD_RECOVERY event,
   so it works even when the home page redirects or tidies the address first.
+
+== Competitors are remembered until you delete them ==
+- frontend/src/utils/savedCompetitors.js (new): saves the competitor rows in this browser, per account.
+- frontend/src/views/DashboardView.vue: restores them after login, saves on every change, forgets them on account delete.
+- Logging out/in keeps them. Removing a row (the X) removes it for good. It is per browser, not per device.
