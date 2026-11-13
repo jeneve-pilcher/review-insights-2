@@ -11,7 +11,7 @@ function clean(rows) {
     .slice(0, MAX_ROWS)
     .map((r) => ({
       name: String(r?.name ?? '').slice(0, 160),
-      search_query: String(r?.search_query ?? '').slice(0, 300),
+      search_query: String(r?.search_query ?? "").slice(0, 2000),
     }))
 }
 

@@ -152,7 +152,7 @@ async function importCsv() {
         <label class="field"><span>Name</span><input v-model="form.name" type="text" maxlength="160" placeholder="Downtown" /></label>
         <label class="field" style="min-width: 260px">
           <span>Google search (name + address)</span>
-          <input v-model="form.google_query" type="text" maxlength="300" placeholder="Acme Grill, 123 Main St, Austin TX" />
+          <input v-model="form.google_query" type="text" maxlength="2000" placeholder="Acme Grill, 123 Main St, Austin TX" />
         </label>
         <label class="field"><span>Brand</span><input v-model="form.brand" type="text" maxlength="120" /></label>
         <label class="field"><span>Region</span><input v-model="form.region" type="text" maxlength="120" /></label>

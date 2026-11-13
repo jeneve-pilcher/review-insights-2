@@ -6,7 +6,7 @@ from sanitize import SafeModel
 
 
 class SetBusinessLocationRequest(SafeModel):
-    business_location: str = Field(..., min_length=1, max_length=300)
+    business_location: str = Field(..., min_length=1, max_length=2000)
 
 
 class AcceptTermsRequest(SafeModel):
@@ -38,7 +38,7 @@ class SetYelpUrlRequest(SafeModel):
 
 class BusinessInput(SafeModel):
     name: str = Field(..., max_length=160)
-    search_query: str = Field(..., max_length=300)
+    search_query: str = Field(..., max_length=2000)
 
 
 class CompetitorsRequest(SafeModel):

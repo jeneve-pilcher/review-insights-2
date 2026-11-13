@@ -118,7 +118,7 @@ const chartOptions = {
       </div>
       <div v-for="(c, i) in competitors" :key="i" class="competitor-row">
         <input :value="c.name" type="text" placeholder="Competitor name (optional)" maxlength="160" class="competitor-name" @input="editCompetitor(i, 'name', $event.target.value)" />
-        <input :value="c.search_query" type="text" placeholder="Location, or a Google Maps URL" maxlength="300" class="competitor-query" @input="editCompetitor(i, 'search_query', $event.target.value)" />
+        <input :value="c.search_query" type="text" placeholder="Location, or a Google Maps URL" maxlength="2000" class="competitor-query" @input="editCompetitor(i, 'search_query', $event.target.value)" />
         <button type="button" class="remove-btn" @click="removeCompetitor(i)">✕</button>
       </div>
       <button v-if="competitors.length < 5" type="button" class="add-btn" @click="addCompetitor">+ Add competitor</button>

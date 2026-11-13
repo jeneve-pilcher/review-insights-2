@@ -17,4 +17,4 @@ export function cleanLine(text) {
 }
 
 // Longest values the forms accept (the server enforces the same limits).
-export const LIMITS = { name: 160, query: 300, url: 500, email: 254, label: 120, message: 4000 }
+export const LIMITS = { name: 160, query: 2000, url: 500, email: 254, label: 120, message: 4000 }

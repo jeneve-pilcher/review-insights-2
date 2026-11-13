@@ -555,3 +555,7 @@ Frontend
 - frontend/src/utils/savedCompetitors.js (new): saves the competitor rows in this browser, per account.
 - frontend/src/views/DashboardView.vue: restores them after login, saves on every change, forgets them on account delete.
 - Logging out/in keeps them. Removing a row (the X) removes it for good. It is per browser, not per device.
+
+== Long Google Maps links rejected ("String should have at most 300 characters") ==
+- Location/competitor link limit raised from 300 to 2000 characters (backend/schemas.py, backend/corporate/schemas.py,
+  and the matching input boxes). BACKEND CHANGE: Render redeploys review-insights-backend too.

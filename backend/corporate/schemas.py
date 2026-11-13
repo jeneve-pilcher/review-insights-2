@@ -20,7 +20,7 @@ class MemberUpdate(SafeModel):
 
 class LocationIn(SafeModel):
     name: str = Field(..., min_length=1, max_length=160)
-    google_query: str = Field(..., min_length=1, max_length=300)
+    google_query: str = Field(..., min_length=1, max_length=2000)
     brand: Optional[str] = Field(None, max_length=120)
     region: Optional[str] = Field(None, max_length=120)
     yelp_url: Optional[str] = Field(None, max_length=500)
@@ -34,7 +34,7 @@ class LocationIn(SafeModel):
 
 class LocationUpdate(SafeModel):
     name: Optional[str] = Field(None, min_length=1, max_length=160)
-    google_query: Optional[str] = Field(None, min_length=1, max_length=300)
+    google_query: Optional[str] = Field(None, min_length=1, max_length=2000)
     brand: Optional[str] = Field(None, max_length=120)
     region: Optional[str] = Field(None, max_length=120)
     yelp_url: Optional[str] = Field(None, max_length=500)
